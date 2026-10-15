@@ -148,7 +148,7 @@ fn try_open_hypr_socket2() -> Option<BufReader<UnixStream>> {
     let his = env::var("HYPRLAND_INSTANCE_SIGNATURE").ok()?;
     let sock = PathBuf::from(xdg).join("hypr").join(his).join(".socket2.sock");
     let stream = UnixStream::connect(sock).ok()?;
-    let _ = stream.set_read_timeout(Some(Duration::from_millis(200)));
+    let _ = stream.set_nonblocking(true);
     Some(BufReader::new(stream))
 }
 
@@ -163,8 +163,10 @@ pub fn run_stream_json(once: bool, max_frames: Option<usize>) -> i32 {
     loop {
         if let Some(ref mut reader) = hypr_sock {
             let mut line = String::new();
-            if reader.read_line(&mut line).unwrap_or(0) > 0 {
-                last_ev = line.trim().to_string();
+            match reader.read_line(&mut line) {
+                Ok(0) => hypr_sock = None,
+                Ok(_) => last_ev = line.trim().to_string(),
+                Err(_) => {}
             }
         }
         let frame = collect_frame(&mut prev_cpu, &last_ev);
