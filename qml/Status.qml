@@ -28,6 +28,7 @@ Singleton {
     property bool cupsActive: false; property string defaultPrinter: "None"; property int printerCount: 0; property string printerSummary: "CUPS Spooler Ready"
     property string netIface: "wlan0"; property string netIpv4: "127.0.0.1"; property string netGateway: "None"; property string netDns: "127.0.0.53"; property string firewallState: "ACTIVE"; property string vpnState: "None"
     property string diskRoot: "0G / 0G"; property string diskHome: "0G / 0G"; property int uiScale: 14; property bool animEnabled: true; property bool orcaRunning: false; property bool nightLightRunning: false; property bool touchpadEnabled: true; property bool monoAudio: false
+    property string gpuArch: "GPU"; property string gpuDriver: "VA-API"; property string gpuCodecs: "Full FFmpeg + VA-API"; property string gpuDmabuf: "Zero-Copy DMABUF Active"; property string workstationMode: "balanced"; property string pkgkitMode: "On-Demand (30s ShutdownTimeout)"
     property var _lastCpu: null; property var _lastNet: null; property var _lastGpu: null
 
     FileView { id: procStat; path: "/proc/stat" }
@@ -104,6 +105,8 @@ Singleton {
                     if (lines[i].startsWith("PRN|")) { const pr = lines[i].split("|"); root.cupsActive = pr[1] === "1"; root.defaultPrinter = pr[2] || "None"; root.printerCount = Number(pr[3] || 0); root.printerSummary = pr[4] || "CUPS Spooler"; continue; }
                     if (lines[i].startsWith("NETI|")) { const ni = lines[i].split("|"); root.netIface = ni[1] || "wlan0"; root.netIpv4 = ni[2] || "Disconnected"; root.netGateway = ni[3] || "None"; root.netDns = ni[4] || "127.0.0.53"; root.firewallState = ni[5] || "ACTIVE"; root.vpnState = ni[6] || "None"; continue; }
                     if (lines[i].startsWith("DSK|")) { const dk = lines[i].split("|"); root.diskRoot = dk[1] || "0G"; root.diskHome = dk[2] || "0G"; continue; }
+                    if (lines[i].startsWith("GPU|")) { const gp = lines[i].split("|"); root.gpuArch = gp[1] || "GPU"; root.gpuDriver = gp[2] || "VA-API"; root.gpuCodecs = gp[3] || "FFmpeg"; root.gpuDmabuf = gp[4] || "Standard"; continue; }
+                    if (lines[i].startsWith("MODE|")) { const mp = lines[i].split("|"); root.workstationMode = (mp[1] || "balanced").trim(); root.pkgkitMode = mp[2] || "On-Demand"; continue; }
                     if (lines[i].startsWith("A11Y|")) { const ay = lines[i].split("|"); root.uiScale = Number(ay[1] || 14); root.animEnabled = ay[2] !== "0"; root.orcaRunning = ay[3] === "1"; root.nightLightRunning = ay[4] === "1"; root.touchpadEnabled = ay[5] !== "0"; root.monoAudio = ay[6] === "1"; continue; }
                     if (lines[i].startsWith("APP|")) { const ap = lines[i].split("|"); if (ap.length >= 5 && ap[1] && ap[2]) { const iconPath = ap[3].startsWith("/") ? ap[3] : (Quickshell.env("HOME") + "/.local/share/icons/hicolor/128x128/apps/" + ap[3] + ".png"), obj = { id: ap[1], name: ap[2], icon: iconPath, execCmd: ap[4], wmClass: ap[5] || ap[1], execute: function() { Quickshell.execDetached(["sh", "-c", ap[4]]); } }; lApps.push(obj); lMap[ap[1].toLowerCase()] = obj; if (ap[5]) lMap[ap[5].toLowerCase()] = obj; } continue; }
                     const parts = lines[i].split(":"); if (parts.length < 4) continue;

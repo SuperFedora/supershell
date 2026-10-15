@@ -112,7 +112,7 @@ pub fn print_probe() {
     println!("DSK|{}|{}", root_str, home_str);
 
     let cfg = cfg_dir();
-    let ui_scale = fs::read_to_string(cfg.join("ui-scale")).ok().and_then(|s| s.trim().parse::<u32>().ok()).unwrap_or(15);
+    let ui_scale = fs::read_to_string(cfg.join("ui-scale")).ok().and_then(|s| s.trim().parse::<u32>().ok()).unwrap_or(14);
     let anim_off = fs::read_to_string(cfg.join("animations")).map(|s| s.trim() == "0" || s.trim() == "off").unwrap_or(false);
     let orca_on = pgrep_exact("orca");
     let night_on = pgrep_exact("wlsunset");
@@ -194,11 +194,13 @@ pub fn apply_setting(args: &[String]) -> i32 {
         "ui-scale" => {
             let sz: u32 = match val {
                 "compact" | "small" | "13" => 13,
-                "large" | "17" => 17,
-                "xlarge" | "xl" | "20" => 20,
-                _ => 15,
+                "default" | "normal" | "14" => 14,
+                "large" | "16" | "17" => 16,
+                "xlarge" | "xl" | "18" | "20" => 18,
+                _ => val.parse::<u32>().unwrap_or(14).clamp(12, 22),
             };
             let _ = fs::write(cfg.join("ui-scale"), format!("{sz}\n"));
+            let _ = Command::new("qs").args(["ipc", "call", "theme", "reload"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
             let _ = Command::new("qs").args(["ipc", "call", "status", "refresh"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
             0
         }

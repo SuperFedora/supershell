@@ -46,12 +46,16 @@ Scope {
 
     function classifyCast(appName, summary, body, urg) {
         const app = String(appName || "").toLowerCase(), head = (app + " " + String(summary || "")).toLowerCase();
-        if (urg === "critical" || /(polkit|firewall|battery|thermal|security|critical|alert|auth|pam)/.test(head)) return { role: "security", roleTitle: "SEC ALERT", zone: "top-center" };
+        if (urg === "critical" || /(polkit|firewall|security|critical|alert|auth|pam)/.test(head)) return { role: "security", roleTitle: "SEC ALERT", zone: "top-center" };
         if (/(openclaw|\bagy\b|antigravity|claude|ollama|\bpi\b|chatgpt|codex|grok|vibe|mcode|quake-ai|ai agent)/.test(head)) return { role: "ai", roleTitle: "AI AGENT", zone: "bottom-center" };
+        if (/(tailscale|wireguard|\bvpn\b|navigator|mesh|route|dns)/.test(head)) return { role: "navigator", roleTitle: "NAVIGATOR", zone: "top-right" };
+        if (/(healer|medic|thermal|battery|scrub|smart|health)/.test(head)) return { role: "medic", roleTitle: "SYS MEDIC", zone: "top-center" };
+        if (/(snapper|snapshot|checkpoint|rollback|vault|archivist|btrfs)/.test(head)) return { role: "archivist", roleTitle: "ARCHIVIST", zone: "top-right" };
+        if (/(commander|fleet|tactical|mission|mode|profile)/.test(head)) return { role: "commander", roleTitle: "COMMANDER", zone: "top-center" };
+        if (/(pipewire|synth|audio|sfx|sound|volume|speaker|mic)/.test(head)) return { role: "synth", roleTitle: "AUDIO SYNTH", zone: "bottom-center" };
         if (/(firefox|discord|slack|spotify|chrome|chromium|brave|thunderbird|telegram|signal|steam|nautilus)/.test(app)) return { role: "app", roleTitle: "APP COMMS", zone: "top-right" };
         if (/(forge|\bdnf\b|cargo|\bgcc\b|\bmake\b|cmake|rustup|flatpak|update|compiler|build)/.test(head)) return { role: "builder", roleTitle: "BUILDER", zone: "top-right" };
-        if (/(superfedora|btrfs|snapper|snapshot|checkpoint|rollback|recorder|screenshot|audio|display|theme|dock|engineer|network|wifi|bluetooth)/.test(head)) return { role: "engineer", roleTitle: "SYS ENG", zone: "top-right" };
-        return { role: "app", roleTitle: "APP COMMS", zone: "top-right" };
+        return { role: "engineer", roleTitle: "SYS ENG", zone: "top-right" };
     }
 
     function pushItem(raw): void {
@@ -76,13 +80,18 @@ Scope {
     function triggerCastTest(target): void {
         const r = String(target || "all").toLowerCase();
         const samples = {
-            ai:       { role: "ai",       roleTitle: "AI AGENT",  zone: "bottom-center", appName: "AGY // OPENCLAW", summary: "Neural Harness Link Active", body: "Context indexed. Ready for code synthesis and workstation automation.", urgency: "normal", timeout: 6000 },
-            security: { role: "security", roleTitle: "SEC ALERT", zone: "top-center",    appName: "POLKIT // GUARD", summary: "Privilege Escalation Check", body: "Critical telemetry & policy guard monitoring active on root subvolume.", urgency: "critical", timeout: 6500 },
-            builder:  { role: "builder",  roleTitle: "BUILDER",   zone: "top-right",     appName: "SF FORGE",        summary: "Native Target Compiled",     body: "Built with -O3 -march=native -flto=auto and linked via mold.", urgency: "normal", timeout: 6000 },
-            engineer: { role: "engineer", roleTitle: "SYS ENG",   zone: "top-right",     appName: "SUPERFEDORA",     summary: "Btrfs Checkpoint Verified",  body: "Workstation subvolume state synchronized and ready for rollback.", urgency: "normal", timeout: 6000 },
-            app:      { role: "app",      roleTitle: "APP COMMS", zone: "top-right",     appName: "FIREFOX",         summary: "External App Transmission",  body: "Incoming desktop application relay framed in 16-bit scanline bezel.", urgency: "normal", timeout: 6000 }
+            ai:        { role: "ai",        roleTitle: "AI AGENT",    zone: "bottom-center", appName: "AGY // OPENCLAW",  summary: "Neural Harness Link Active",   body: "Context indexed. Ready for code synthesis and workstation automation.", urgency: "normal", timeout: 6000 },
+            security:  { role: "security",  roleTitle: "SEC ALERT",   zone: "top-center",    appName: "POLKIT // GUARD",  summary: "Privilege Escalation Check",   body: "Critical telemetry & policy guard monitoring active on root subvolume.", urgency: "critical", timeout: 6500 },
+            builder:   { role: "builder",   roleTitle: "BUILDER",     zone: "top-right",     appName: "SF FORGE",         summary: "Native Target Compiled",       body: "Built with -O3 -march=native -flto=auto and linked via mold.", urgency: "normal", timeout: 6000 },
+            engineer:  { role: "engineer",  roleTitle: "SYS ENG",     zone: "top-right",     appName: "SUPERFEDORA",      summary: "Workstation Stack Verified",   body: "All 10 modules and systemd session targets synchronized.", urgency: "normal", timeout: 6000 },
+            app:       { role: "app",       roleTitle: "APP COMMS",   zone: "top-right",     appName: "FIREFOX",          summary: "External App Transmission",    body: "Incoming desktop application relay framed in 16-bit scanline bezel.", urgency: "normal", timeout: 6000 },
+            navigator: { role: "navigator", roleTitle: "NAVIGATOR",   zone: "top-right",     appName: "NET // TAILSCALE", summary: "Mesh Route Synchronized",      body: "Tailscale WireGuard tunnel & low-latency DNS routing locked.", urgency: "normal", timeout: 6000 },
+            medic:     { role: "medic",     roleTitle: "SYS MEDIC",   zone: "top-center",    appName: "BTRFS // HEALER",  summary: "Subvolume Health Scrub",       body: "Thermal, SMART, and Btrfs scrub diagnostics verified with zero errors.", urgency: "normal", timeout: 6000 },
+            archivist: { role: "archivist", roleTitle: "ARCHIVIST",   zone: "top-right",     appName: "SNAPPER // VAULT", summary: "Immutable Snapshot Sealed",    body: "Timeline checkpoint indexed into cold storage and GRUB boot menu.", urgency: "normal", timeout: 6000 },
+            commander: { role: "commander", roleTitle: "COMMANDER",   zone: "top-center",    appName: "FLEET // OPS",     summary: "Tactical Override Active",     body: "Workstation mission parameters locked across all active workspaces.", urgency: "normal", timeout: 6000 },
+            synth:     { role: "synth",     roleTitle: "AUDIO SYNTH", zone: "bottom-center", appName: "PIPEWIRE // DSP",  summary: "16-Bit PCM Synth Locked",      body: "Low-latency PipeWire quantum and 16-bit WAV audio cues online.", urgency: "normal", timeout: 6000 }
         };
-        if (r === "all") { for (const k of ["ai", "security", "builder", "engineer", "app"]) { root.synthSeq += 1; root.pushItem(Object.assign({ id: root.synthSeq }, samples[k])); } }
+        if (r === "all") { for (const k of Object.keys(samples)) { root.synthSeq += 1; root.pushItem(Object.assign({ id: root.synthSeq }, samples[k])); } }
         else if (samples[r]) { root.synthSeq += 1; root.pushItem(Object.assign({ id: root.synthSeq }, samples[r])); Status.playSfx(r === "security" ? "alert" : "confirm"); }
     }
 

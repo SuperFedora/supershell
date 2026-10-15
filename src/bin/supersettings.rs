@@ -136,6 +136,10 @@ fn main() {
         "version" | "--version" | "-V" => println!("supersettings 0.4.0 (SuperFedora/supershell)"),
         "probe" | "settings-probe" => print_probe(),
         "apply" | "settings-apply" => process::exit(apply_setting(&args[1..])),
+        "mode" | "profile" | "hardware" | "vaapi" | "theme" | "palette" | "corners"
+        | "ui-scale" | "animations" | "nightlight" | "orca" | "mono-audio" => {
+            process::exit(apply_setting(&args))
+        }
         "open" => {
             let page = args.get(1).map(|s| s.as_str()).unwrap_or("system");
             let _ = qs_call("settings", &["open", page]);
