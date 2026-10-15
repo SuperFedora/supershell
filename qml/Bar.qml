@@ -46,7 +46,7 @@ PanelWindow {
     // ---------------- Left ----------------
     RowLayout {
         id: leftRow; anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 4 } spacing: 0
-        BarLabel { text: "󰣛"; color: Status.settingsOpen ? Theme.cyan : Theme.blue; pixelSize: Theme.iconSize + 2; onHoveredChanged: bar.setTip("SuperFedora Settings (Super+S)  ·  Right-click: SuperDock (Super+Space)", hovered); onClicked: { calendarPopup.mode = ""; Status.toggleSettings(""); } onRightClicked: bar.openDeck("") }
+        BarLabel { text: "󰣛"; color: Status.settingsOpen ? Theme.cyan : Theme.blue; pixelSize: Theme.iconSize + 2; onHoveredChanged: bar.setTip("SuperFedora Settings (Super+,)  ·  Right-click: SuperDock (Super+Alt+Space)", hovered); onClicked: { calendarPopup.mode = ""; Status.toggleSettings("home"); } onRightClicked: bar.openDeck("") }
         Workspaces { monitor: bar.hyprMonitor; thickness: bar.implicitHeight }
         BarLabel { id: modeLabel; property string mode: ""; visible: mode !== ""; text: "󰌌 " + mode.toUpperCase() + "  ·  Esc to exit"; color: Theme.yellow; pixelSize: Theme.fontSize; bold: true; onClicked: Hyprland.dispatch("submap reset"); Connections { target: Hyprland; function onRawEvent(event) { if (event.name === "submap") modeLabel.mode = event.data; } } }
     }

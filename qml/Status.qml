@@ -186,8 +186,8 @@ Singleton {
         return (s === "power" || s === "battery" || s === "session" || s === "0" || s === "10") ? "power" : (root.superDeckSection || "ai");
     }
     function normalizeSettingsPage(p) {
-        const s = String(p || "").toLowerCase();
-        if (s === "home" || s === "overview" || s === "dashboard" || s === "main") return "home";
+        const s = String(p || "").trim().toLowerCase();
+        if (s === "" || s === "home" || s === "overview" || s === "dashboard" || s === "main" || s === "ai" || s === "`" || s === "0") return "home";
         if (s === "system" || s === "sys" || s === "display" || s === "displays" || s === "audio" || s === "sound" || s === "1" || s === "4" || s === "5") return "system";
         if (s === "devices" || s === "bluetooth" || s === "bt" || s === "printers" || s === "printer" || s === "input" || s === "keyboard" || s === "mouse" || s === "3") return "devices";
         if (s === "network" || s === "net" || s === "wifi" || s === "2") return "network";
@@ -197,8 +197,8 @@ Singleton {
         if (s === "apps" || s === "forge" || s === "startup" || s === "autostart" || s === "8") return "apps";
         if (s === "accounts" || s === "users" || s === "user") return "accounts";
         if (s === "accessibility" || s === "a11y" || s === "acc") return "accessibility";
-        if (s === "power" || s === "state" || s === "ai" || s === "updates" || s === "recovery" || s === "`" || s === "9" || s === "0") return "power";
-        return root.settingsPage || "home";
+        if (s === "power" || s === "state" || s === "updates" || s === "recovery" || s === "9" || s === "10") return "power";
+        return "home";
     }
     property bool _quakeShown: false
     function syncQuakeAi(hdrH) { const want = root.superDeckOpen && root.normalizeDeckTab(root.superDeckSection) === "ai"; if (!want && !root._quakeShown) return; root._quakeShown = want; Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/quake-ai.sh " + (want ? ("show " + (hdrH || 40)) : "hide keep-deck") + " >/dev/null 2>&1"]); }

@@ -120,7 +120,7 @@ PanelWindow {
                 Rectangle {
                     implicitWidth: 84; implicitHeight: 30; radius: Theme.radiusSm; color: setM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: setM.containsMouse ? Theme.cyan : Theme.border
                     Text { anchors.centerIn: parent; text: "󰒓 SETTINGS"; color: setM.containsMouse ? Theme.cyan : Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.bold: true }
-                    MouseArea { id: setM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettings(pop.activeTab) }
+                    MouseArea { id: setM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettings("home") }
                 }
                 Rectangle {
                     implicitWidth: 40; implicitHeight: 30; radius: Theme.radiusSm; color: escM.containsMouse ? Theme.red : Theme.bg; border.width: 1; border.color: escM.containsMouse ? Theme.red : Theme.border
