@@ -50,7 +50,7 @@ ColumnLayout {
                             id: tpBtn; required property var modelData; readonly property bool isCur: Theme.theme === modelData.id
                             Layout.fillWidth: true; Layout.fillHeight: true; radius: Theme.radiusSm; color: tpM.containsMouse ? Theme.bgHover : (isCur ? Theme.blue : Theme.bg); border.width: isCur ? 2 : 1; border.color: isCur ? Theme.cyan : modelData.hex
                             RowLayout { anchors.centerIn: parent; spacing: 5; Rectangle { width: 9; height: 9; radius: 2; color: tpBtn.modelData.hex; border.width: 1; border.color: tpBtn.isCur ? Theme.bg : Theme.fg } Text { text: tpBtn.modelData.label; color: tpBtn.isCur ? Theme.bg : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.bold: true } }
-                            MouseArea { id: tpM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: deckBody.executeCommand("~/.local/bin/sf theme " + tpBtn.modelData.id + " || ~/Projects/superfedora/superfedora/lib/apply-theme.sh " + tpBtn.modelData.id, false) }
+                            MouseArea { id: tpM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: deckBody.executeCommand("~/.local/bin/supertheme " + tpBtn.modelData.id + " || ~/.local/bin/sf theme " + tpBtn.modelData.id, false) }
                         }
                     }
                 }
@@ -93,7 +93,7 @@ ColumnLayout {
                     id: sfTog; required property var modelData; Layout.fillWidth: true; Layout.fillHeight: true; radius: Theme.radius; color: sfM.containsMouse ? Theme.bgHover : Theme.bgAlt; border.width: 2; border.color: sfM.containsMouse ? Theme.cyan : modelData.col
                     Rectangle { anchors { fill: parent; margins: 3 } color: "transparent"; border.width: 1; border.color: Theme.border; radius: Theme.radius }
                     ColumnLayout { anchors.centerIn: parent; spacing: 2; Text { Layout.alignment: Qt.AlignHCenter; text: sfTog.modelData.label; color: sfTog.modelData.col; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.bold: true } Text { Layout.alignment: Qt.AlignHCenter; text: sfTog.modelData.sub; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.bold: true } }
-                    MouseArea { id: sfM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { const a = sfTog.modelData.act; if (a === "sfx") Status.toggleSfx(); else if (a === "corners") deckBody.executeCommand("~/.local/bin/sf theme corners toggle || ~/Projects/superfedora/superfedora/lib/apply-theme.sh corners toggle", false); else deckBody.executeCommand("~/.local/bin/sf theme toggle || ~/Projects/superfedora/superfedora/lib/apply-theme.sh toggle", false); } }
+                    MouseArea { id: sfM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { const a = sfTog.modelData.act; if (a === "sfx") Status.toggleSfx(); else if (a === "corners") deckBody.executeCommand("~/.local/bin/supertheme corners toggle || ~/.local/bin/sf theme corners toggle", false); else deckBody.executeCommand("~/.local/bin/supertheme toggle || ~/.local/bin/sf theme toggle", false); } }
                 }
             }
         }
@@ -209,7 +209,7 @@ ColumnLayout {
                 Layout.fillWidth: true; Layout.fillHeight: true; radius: Theme.radius; color: ckM.containsMouse ? Theme.green : Theme.bgAlt; border.width: 2; border.color: Theme.green
                 Rectangle { anchors { fill: parent; margins: 3 } color: "transparent"; border.width: 1; border.color: Theme.border; radius: Theme.radius }
                 ColumnLayout { anchors.centerIn: parent; spacing: 8; Text { Layout.alignment: Qt.AlignHCenter; text: (ckM.containsMouse ? "▸ " : "") + "[ + SAVE BTRFS CHECKPOINT ]"; color: ckM.containsMouse ? Theme.bg : Theme.green; font.family: Theme.font; font.pixelSize: Theme.fontSize + 2; font.bold: true } Text { Layout.alignment: Qt.AlignHCenter; text: "Create Atomic Root Snapshot via Snapper"; color: ckM.containsMouse ? Theme.bg : Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.bold: true } }
-                MouseArea { id: ckM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: deckBody.executeCommand("(pkexec snapper -c root create -d 'SuperDesk Checkpoint' || ~/.local/bin/sf rollback --create 'SuperDesk Checkpoint') && (~/.local/bin/sf notify --banner checkpoint >/dev/null 2>&1 || true) && notify-send -a SuperFedora 'Btrfs Checkpoint' 'Saved SuperDesk Checkpoint'", false) }
+                MouseArea { id: ckM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: deckBody.executeCommand("(pkexec snapper -c root create -d 'SuperDesk Checkpoint' || ~/.local/bin/sf rollback --create 'SuperDesk Checkpoint') && (~/.local/bin/supernotify --banner checkpoint >/dev/null 2>&1 || ~/.local/bin/sf notify --banner checkpoint >/dev/null 2>&1 || true) && notify-send -a SuperFedora 'Btrfs Checkpoint' 'Saved SuperDesk Checkpoint'", false) }
             }
             Rectangle {
                 Layout.fillWidth: true; Layout.fillHeight: true; radius: Theme.radius; color: rbM.containsMouse ? Theme.yellow : Theme.bgAlt; border.width: 2; border.color: Theme.yellow

@@ -35,7 +35,7 @@ Scope {
 
     FileView { id: wallFile; path: Quickshell.env("HOME") + "/.config/hypr/.current-wallpaper" }
     Process {
-        id: deProc; command: ["sh", "-c", "~/.local/share/superfedora/lib/session-ctl.sh list 2>/dev/null"]
+        id: deProc; command: ["sh", "-c", "~/.local/bin/superlock list 2>/dev/null || ~/.local/bin/sf session list 2>/dev/null"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const list = [];
@@ -112,7 +112,7 @@ Scope {
                         model: [
                             { icon: "󰍹", label: "Turn Screen Off", danger: false, direct: "sleep 0.2; ~/.config/hypr/scripts/toggle-touchpad.sh dpms off" },
                             { icon: "󰤄", label: "Suspend...",      danger: false, act: "suspend", title: "Suspend System?",     body: "The system will enter low-power sleep mode.", btn: "Suspend",   cmd: "systemctl suspend" },
-                            { icon: "󰍃", label: "Log Out...",      danger: true,  act: "logout",  title: "Log Out of Session?", body: "Close your current session and return to the login screen.", btn: "Log Out", cmd: "~/.local/share/superfedora/lib/session-ctl.sh switch" },
+                            { icon: "󰍃", label: "Log Out...",      danger: true,  act: "logout",  title: "Log Out of Session?", body: "Close your current session and return to the login screen.", btn: "Log Out", cmd: "~/.local/bin/superlock switch || ~/.local/bin/sf session switch" },
                             { icon: "󰜉", label: "Restart...",      danger: true,  act: "reboot",  title: "Restart System?",     body: "All open applications will close and the system will reboot.", btn: "Restart", cmd: "systemctl reboot" },
                             { icon: "󰐥", label: "Power Off...",    danger: true,  act: "power",   title: "Power Off System?",   body: "All open applications will close and the system will shut down.", btn: "Power Off", cmd: "systemctl poweroff" }
                         ]
@@ -212,8 +212,8 @@ Scope {
                                 id: dmMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     const d = parent.modelData; root.curDeId = d.id; root.curDeName = d.name;
-                                    Quickshell.execDetached(["sh", "-c", "~/.local/share/superfedora/lib/session-ctl.sh set '" + d.id + "'"]);
-                                    root.askConfirm("de", "Switch Desktop to " + d.name + "?", "Save '" + d.name + "' as your session and return to the login screen to launch it?", "Switch to " + d.name, "~/.local/share/superfedora/lib/session-ctl.sh set '" + d.id + "' && ~/.local/share/superfedora/lib/session-ctl.sh switch", false);
+                                    Quickshell.execDetached(["sh", "-c", "~/.local/bin/superlock set '" + d.id + "' || ~/.local/bin/sf session set '" + d.id + "'"]);
+                                    root.askConfirm("de", "Switch Desktop to " + d.name + "?", "Save '" + d.name + "' as your session and return to the login screen to launch it?", "Switch to " + d.name, "(~/.local/bin/superlock set '" + d.id + "' && ~/.local/bin/superlock switch) || (~/.local/bin/sf session set '" + d.id + "' && ~/.local/bin/sf session switch)", false);
                                 }
                             }
                         }
