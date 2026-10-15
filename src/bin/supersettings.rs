@@ -50,7 +50,7 @@ fn run_tui(env: &ShellEnv) -> i32 {
             let sec = env.sec();
             let rows = Layout::default().direction(Direction::Vertical).constraints([Constraint::Length(3), Constraint::Min(12), Constraint::Length(3)]).split(f.area());
             let hdr = Paragraph::new(Line::from(vec![
-                Span::styled(" [::] SUPERSETTINGS v0.1.0 ", Style::default().fg(Color::Black).bg(pri).add_modifier(Modifier::BOLD)),
+                Span::styled(" [::] SUPERSETTINGS v0.3.0 ", Style::default().fg(Color::Black).bg(pri).add_modifier(Modifier::BOLD)),
                 Span::raw("  10-Page Native Rust Workstation Settings Engine "),
             ])).block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(pri)));
             f.render_widget(hdr, rows[0]);
@@ -125,7 +125,7 @@ fn main() {
     let cmd = args[0].as_str();
     match cmd {
         "tui" => process::exit(run_tui(&env)),
-        "version" | "--version" | "-V" => println!("supersettings 0.1.0 (SuperFedora/supershell)"),
+        "version" | "--version" | "-V" => println!("supersettings 0.3.0 (SuperFedora/supershell)"),
         "probe" | "settings-probe" => print_probe(),
         "apply" | "settings-apply" => process::exit(apply_setting(&args[1..])),
         "open" => {

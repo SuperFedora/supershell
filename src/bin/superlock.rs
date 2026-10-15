@@ -100,7 +100,7 @@ fn run_tui(env: &ShellEnv) -> i32 {
             let sec = env.sec();
             let rows = Layout::default().direction(Direction::Vertical).constraints([Constraint::Length(3), Constraint::Min(10), Constraint::Length(3)]).split(f.area());
             let hdr = Paragraph::new(Line::from(vec![
-                Span::styled(" [::] SUPERLOCK v0.1.0 ", Style::default().fg(Color::Black).bg(pri).add_modifier(Modifier::BOLD)),
+                Span::styled(" [::] SUPERLOCK v0.3.0 ", Style::default().fg(Color::Black).bg(pri).add_modifier(Modifier::BOLD)),
                 Span::raw(format!("  Selected DE: {cur_id}  |  Idle Mode: {idle} ")),
             ])).block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(pri)));
             f.render_widget(hdr, rows[0]);
@@ -180,7 +180,7 @@ fn main() {
 
     match cmd {
         "tui" => process::exit(run_tui(&env)),
-        "version" | "--version" | "-V" => println!("superlock 0.1.0 (SuperFedora/supershell)"),
+        "version" | "--version" | "-V" => println!("superlock 0.3.0 (SuperFedora/supershell)"),
         "lock" | "activate" => activate_lock(),
         "status" => println!("<b>\u{f0493} DE: {cur_name}</b>"),
         "list" => {
