@@ -118,6 +118,41 @@ pub fn print_probe() {
     let night_on = pgrep_exact("wlsunset");
     let tpad_on = fs::read_to_string(cfg.join("touchpad-enabled")).map(|s| s.trim() != "0" && s.trim() != "off").unwrap_or(true);
     let mono_on = fs::read_to_string(cfg.join("mono-audio")).map(|s| s.trim() == "1" || s.trim() == "on").unwrap_or(false);
+    let ws_mode = fs::read_to_string(cfg.join("workstation-mode"))
+        .unwrap_or_else(|_| "balanced".into())
+        .trim()
+        .to_string();
+    let mut gpu_arch = String::from("Generic KMS/DRM GPU");
+    let mut va_drv = "radeonsi (Mesa Freeworld)";
+    if let Ok(entries) = fs::read_dir("/sys/bus/pci/devices") {
+        for e in entries.flatten() {
+            let p = e.path();
+            if fs::read_to_string(p.join("class")).unwrap_or_default().trim().starts_with("0x03") {
+                match fs::read_to_string(p.join("vendor")).unwrap_or_default().trim() {
+                    "0x1002" => { gpu_arch = "AMD RDNA / Radeon".into(); va_drv = "radeonsi (Mesa Freeworld)"; }
+                    "0x8086" => { gpu_arch = "Intel Arc / Xe".into(); va_drv = "iHD (Intel Media Driver)"; }
+                    "0x10de" => { gpu_arch = "NVIDIA RTX / GeForce".into(); va_drv = "nvidia (NVDEC VA-API)"; }
+                    _ => {}
+                }
+                break;
+            }
+        }
+    }
+    let ff_ok = Path::new("/usr/bin/ffmpeg").exists();
+    let dmabuf_ok = cfg.join("firefox-vaapi.js").is_file();
+    let pk_idle = if Path::new("/etc/systemd/system/packagekit.service.d/superfedora-timeout.conf").exists() {
+        "On-Demand (30s ShutdownTimeout)"
+    } else {
+        "On-Demand (Socket)"
+    };
+    println!(
+        "GPU|{}|{}|{}|{}",
+        gpu_arch,
+        va_drv,
+        if ff_ok { "Full FFmpeg + VA-API" } else { "ffmpeg-free" },
+        if dmabuf_ok { "Zero-Copy DMABUF Active" } else { "Standard" }
+    );
+    println!("MODE|{}|{}", ws_mode, pk_idle);
     println!(
         "A11Y|{}|{}|{}|{}|{}|{}",
         ui_scale,
@@ -135,6 +170,17 @@ pub fn apply_setting(args: &[String]) -> i32 {
     let cfg = cfg_dir();
 
     match act {
+        "mode" | "profile" => {
+            let next = if val.is_empty() { "cycle" } else { val };
+            let _ = Command::new("superfedora").args(["mode", next]).status();
+            let _ = Command::new("qs").args(["ipc", "call", "status", "refresh"]).status();
+            0
+        }
+        "hardware" | "vaapi" => {
+            let _ = Command::new("superfedora").args(["hardware", "optimize"]).status();
+            let _ = Command::new("qs").args(["ipc", "call", "status", "refresh"]).status();
+            0
+        }
         "ui-scale" => {
             let sz: u32 = match val {
                 "compact" | "small" | "13" => 13,

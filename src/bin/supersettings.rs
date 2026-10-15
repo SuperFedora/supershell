@@ -24,16 +24,16 @@ use supershell::{
 };
 
 const PAGES: &[(&str, &str, &str)] = &[
-    ("system", "01 System & Display", "Monitors, Audio Sinks/Sources, Brightness, Nightlight"),
-    ("devices", "02 Devices & Bluetooth", "Bluetooth controllers, CUPS Printers, Touchpad & Input"),
-    ("network", "03 Network & VPN", "Wi-Fi SSIDs, Ethernet, DNS, Firewalld & WireGuard VPN"),
+    ("system", "01 System & Display", "Monitors, GPU VA-API Codecs, Audio, Brightness, Nightlight"),
+    ("devices", "02 Devices & Bluetooth", "Bluetooth controllers, On-Demand CUPS Socket, Touchpad & Input"),
+    ("network", "03 Network & VPN", "Wi-Fi SSIDs, Ethernet, DNS, Firewalld & WireGuard/Tailscale"),
     ("personalization", "04 Personalization", "16-Bit Rainbow Palettes, Day/Night Mode, Corners, Wallpapers"),
-    ("windowing", "05 Windowing & Shell", "SuperDock Edge/Autohide, SuperBar Icons, Tiling/Scrolling/Floating"),
-    ("notifications", "06 Notifications & Clock", "Do Not Disturb, Cast Comms, 24h Clock & World Clocks"),
-    ("apps", "07 Apps & SuperForge", "Native -march=native Builds, Firefox WebApps, Autostart Apps"),
+    ("windowing", "05 Windowing & Shell", "SuperDock Edge/Autohide, SuperBar HUD, VFR & Direct Scanout"),
+    ("notifications", "06 Notifications & Clock", "Do Not Disturb, 10 Cast Specialists, 24h Clock & Overlay"),
+    ("apps", "07 Apps & SuperForge", "2-Tier Binary Cache, -march=native Builds, Firefox WebApps"),
     ("accounts", "08 Accounts & Security", "User Groups, Shell, SSH ED25519 Keys, PAM & Fingerprint"),
     ("accessibility", "09 Accessibility", "UI Font Scale, Animations, Screen Reader (Orca), Mono Audio"),
-    ("power", "10 Power, State & AI", "Battery Thresholds, Snapper Btrfs Checkpoints, Quake AI & SuperAgent"),
+    ("power", "10 Power, Mode & Vault", "Workstation Modes (Stealth/Balanced/Forge/Arcade), Btrfs Vault & AI"),
 ];
 
 fn run_tui(env: &ShellEnv) -> i32 {
@@ -50,8 +50,8 @@ fn run_tui(env: &ShellEnv) -> i32 {
             let sec = env.sec();
             let rows = Layout::default().direction(Direction::Vertical).constraints([Constraint::Length(3), Constraint::Min(12), Constraint::Length(3)]).split(f.area());
             let hdr = Paragraph::new(Line::from(vec![
-                Span::styled(" [::] SUPERSETTINGS v0.3.0 ", Style::default().fg(Color::Black).bg(pri).add_modifier(Modifier::BOLD)),
-                Span::raw("  10-Page Native Rust Workstation Settings Engine "),
+                Span::styled(" [::] SUPERSETTINGS v0.4.0 ", Style::default().fg(Color::Black).bg(pri).add_modifier(Modifier::BOLD)),
+                Span::raw("  10-Page Native Rust Workstation Settings Engine (VA-API + Modes + Btrfs) "),
             ])).block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(pri)));
             f.render_widget(hdr, rows[0]);
 
@@ -64,12 +64,12 @@ fn run_tui(env: &ShellEnv) -> i32 {
                     Span::styled(desc, Style::default().fg(Color::Gray)),
                 ]))
             }).collect();
-            let list = List::new(items).block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(sec)).title(" WORKSTATION SETTINGS PAGES (Enter=Open GUI Page, t=Toggle Theme, c=Toggle Corners) "));
+            let list = List::new(items).block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(sec)).title(" WORKSTATION SETTINGS PAGES (Enter=Open GUI Page, m=Cycle Mode, t=Toggle Theme, c=Toggle Corners) "));
             f.render_widget(list, rows[1]);
 
             let ftr = Paragraph::new(Line::from(vec![
                 Span::styled(" KEYS ", Style::default().fg(Color::Black).bg(sec).add_modifier(Modifier::BOLD)),
-                Span::raw(" [Enter] Open Page in Shell  [t] Toggle Day/Night  [c] Toggle Corners  [n] Next Palette  [q] Quit | "),
+                Span::raw(" [Enter] Open Page  [m] Cycle Mode  [g] Optimize GPU/VA-API  [t] Day/Night  [c] Corners  [q] Quit | "),
                 Span::styled(&msg, Style::default().fg(pri).add_modifier(Modifier::BOLD)),
             ])).block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(pri)));
             f.render_widget(ftr, rows[2]);
@@ -88,6 +88,14 @@ fn run_tui(env: &ShellEnv) -> i32 {
                     let _ = qs_call("settings", &["open", id]);
                     play_sfx("click");
                     msg = format!("Opened settings page: {id}");
+                }
+                KeyCode::Char('m') => {
+                    let _ = apply_setting(&["mode".into(), "cycle".into()]);
+                    msg = "Cycled 16-Bit Workstation Mode (Stealth/Balanced/Forge/Arcade)".into();
+                }
+                KeyCode::Char('g') => {
+                    let _ = apply_setting(&["hardware".into(), "optimize".into()]);
+                    msg = "Applied GPU VA-API & Firefox zero-copy DMABUF optimization".into();
                 }
                 KeyCode::Char('t') => {
                     let _ = apply_setting(&["theme".into(), "toggle".into()]);
@@ -125,7 +133,7 @@ fn main() {
     let cmd = args[0].as_str();
     match cmd {
         "tui" => process::exit(run_tui(&env)),
-        "version" | "--version" | "-V" => println!("supersettings 0.3.0 (SuperFedora/supershell)"),
+        "version" | "--version" | "-V" => println!("supersettings 0.4.0 (SuperFedora/supershell)"),
         "probe" | "settings-probe" => print_probe(),
         "apply" | "settings-apply" => process::exit(apply_setting(&args[1..])),
         "open" => {
@@ -145,6 +153,7 @@ fn main() {
             for &(id, title, desc) in PAGES {
                 println!("  {:<16} {:<26} {}", id, title, desc);
             }
+            print_probe();
         }
         "-h" | "--help" | "help" => {
             println!("Usage: supersettings [tui|probe|apply <domain> <action>|open [page]|toggle|list]");

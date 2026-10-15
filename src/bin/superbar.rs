@@ -92,7 +92,7 @@ fn run_tui(env: &ShellEnv) -> i32 {
             let sec = env.sec();
             let rows = Layout::default().direction(Direction::Vertical).constraints([Constraint::Length(3), Constraint::Min(10), Constraint::Length(3)]).split(f.area());
             let hdr = Paragraph::new(Line::from(vec![
-                Span::styled(" [::] SUPERBAR v0.3.0 ", Style::default().fg(Color::Black).bg(pri).add_modifier(Modifier::BOLD)),
+                Span::styled(" [::] SUPERBAR v0.4.0 ", Style::default().fg(Color::Black).bg(pri).add_modifier(Modifier::BOLD)),
                 Span::raw(format!("  Daemon: {}  |  Clock: {} ({}) ", if qs_running() { "ONLINE" } else { "OFFLINE" }, if c24 { "24h" } else { "12h" }, if csec { "+sec" } else { "no-sec" })),
             ])).block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(pri)));
             f.render_widget(hdr, rows[0]);
@@ -174,9 +174,28 @@ fn main() {
     let (mut c24, mut csec) = load_clock(&env);
     match cmd {
         "tui" => process::exit(run_tui(&env)),
-        "version" | "--version" | "-V" => println!("superbar 0.3.0 (SuperFedora/supershell)"),
+        "version" | "--version" | "-V" => println!("superbar 0.4.0 (SuperFedora/supershell)"),
+        "--stream-json" | "stream-json" => {
+            let once = args.iter().any(|a| a == "--once" || a == "-1");
+            let frames = args.windows(2).find(|w| w[0] == "--frames").and_then(|w| w[1].parse::<usize>().ok());
+            process::exit(supershell::telemetry_hud::run_stream_json(once, frames));
+        }
+        "--telemetry-json" | "telemetry-json" | "telemetry" => {
+            process::exit(supershell::telemetry_hud::run_stream_json(true, Some(1)));
+        }
+        "hud" | "--hud" | "layer-shell" => {
+            let once = args.iter().any(|a| a == "--once" || a == "-1" || a == "--json");
+            process::exit(supershell::telemetry_hud::run_native_hud(&env, once));
+        }
+        "mode" | "profile" => {
+            let m = args.get(1).map(|s| s.as_str()).unwrap_or("status");
+            let code = process::Command::new("superfedora").args(["mode", m]).status().map(|s| s.code().unwrap_or(0)).unwrap_or(1);
+            process::exit(code);
+        }
         "status" | "list" => {
-            println!("SuperBar Daemon : {}", if qs_running() { "running (quickshell)" } else { "offline" });
+            let ws_mode = fs::read_to_string(env.state_dir.join("workstation-mode")).unwrap_or_else(|_| "balanced".into());
+            println!("SuperBar Daemon : {}", if qs_running() { "running (quickshell)" } else { "native-hud ready" });
+            println!("Workstation Mode: {}", ws_mode.trim().to_uppercase());
             println!("Clock Format    : {} ({})", if c24 { "24-hour" } else { "12-hour" }, if csec { "seconds shown" } else { "no seconds" });
             println!("Bar Icon Order  : {}", ic.order.join(" "));
             println!("Hidden Icons    : {}", if ic.hidden.is_empty() { "none".into() } else { ic.hidden.join(", ") });
@@ -216,7 +235,7 @@ fn main() {
             }
         }
         _ => {
-            println!("Usage: superbar [status|toggle|reload|deck [tab]|clock [24h|12h|seconds]|icons [reset|hide|show]|tui]");
+            println!("Usage: superbar [status|--stream-json [--once]|--telemetry-json|hud [--once]|mode [stealth|balanced|forge|arcade]|toggle|reload|deck|clock|icons|tui]");
             if cmd != "-h" && cmd != "--help" && cmd != "help" { process::exit(2); }
         }
     }

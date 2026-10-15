@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod settings_engine;
+pub mod telemetry_hud;
 
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
