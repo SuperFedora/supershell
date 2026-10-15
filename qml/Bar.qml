@@ -5,6 +5,7 @@ import Quickshell.Hyprland
 import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 import Quickshell.Bluetooth
+import "panels"
 
 // Omarchy Quattro + GNOME Top Bar: [SF] + Workspaces | Clock | Collapsible System Tray (◂/▸) + Clean Status Pill.
 PanelWindow {
@@ -20,11 +21,17 @@ PanelWindow {
     function run(cmd) { Quickshell.execDetached(["sh", "-c", cmd]); }
     PwObjectTracker { objects: [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource] }
 
-    function openDeck(sec) { calendarPopup.mode = ""; Status.toggleSuperDeck(sec || ""); }
+    function openDeck(sec) { calendarPopup.mode = ""; quickFlyout.mode = ""; Status.toggleSuperDeck(sec || ""); }
     function toggleCenter(targetMode) {
-        Status.superDeckOpen = false; Status.appGridOpen = false; Status.recorderOpen = false; Status.settingsOpen = false;
+        Status.superDeckOpen = false; Status.appGridOpen = false; Status.recorderOpen = false; Status.settingsOpen = false; quickFlyout.mode = "";
         if (calendarPopup.mode === targetMode) calendarPopup.mode = "";
         else { if (targetMode === "date") calendarPopup.resetToToday(); else Status.refresh(); calendarPopup.mode = targetMode; }
+        Status.playSfx("click");
+    }
+    function toggleFlyout(targetMode) {
+        Status.superDeckOpen = false; Status.appGridOpen = false; Status.recorderOpen = false; Status.settingsOpen = false; calendarPopup.mode = "";
+        quickFlyout.mode = (quickFlyout.mode === targetMode) ? "" : targetMode;
+        if (quickFlyout.mode !== "") Status.refresh();
         Status.playSfx("click");
     }
 
@@ -32,27 +39,28 @@ PanelWindow {
     function setTip(txt, on) { if (on) bar.hoverTip = txt; else if (bar.hoverTip === txt) bar.hoverTip = ""; }
 
     Calendar { id: calendarPopup; targetScreen: bar.modelData }
+    QuickFlyout { id: quickFlyout; targetScreen: bar.modelData }
     StatusPopup { id: statusPopup; targetScreen: bar.modelData }
 
     PanelWindow {
-        visible: bar.hoverTip !== "" && !Status.superDeckOpen && calendarPopup.mode === ""
+        visible: bar.hoverTip !== "" && !Status.superDeckOpen && calendarPopup.mode === "" && quickFlyout.mode === ""
         screen: bar.modelData; color: "transparent"; exclusionMode: ExclusionMode.Ignore; anchors.top: true; margins.top: Theme.barHeight + 4
         implicitWidth: tipText.implicitWidth + 20; implicitHeight: 24
         Rectangle { anchors.fill: parent; radius: Theme.radiusSm; color: Theme.bgAlt; border.width: 1; border.color: Theme.cyan; Text { id: tipText; anchors.centerIn: parent; text: bar.hoverTip; color: Theme.cyan; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.bold: true } }
     }
 
-    MouseArea { anchors.fill: parent; z: -1; onClicked: { Status.superDeckOpen = false; Status.settingsOpen = false; calendarPopup.mode = ""; } onDoubleClicked: { Theme.barOpacity = Theme.barOpacity < 0.99 ? 1.0 : 0.82; Status.playSfx("toggle"); } }
+    MouseArea { anchors.fill: parent; z: -1; onClicked: { Status.superDeckOpen = false; Status.settingsOpen = false; calendarPopup.mode = ""; quickFlyout.mode = ""; } onDoubleClicked: { Theme.barOpacity = Theme.barOpacity < 0.99 ? 1.0 : 0.82; Status.playSfx("toggle"); } }
 
     // ---------------- Left ----------------
     RowLayout {
         id: leftRow; anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 4 } spacing: 0
-        BarLabel { text: "󰣛"; color: Status.settingsOpen ? Theme.cyan : Theme.blue; pixelSize: Theme.iconSize + 2; onHoveredChanged: bar.setTip("SuperFedora Settings (Super+,)  ·  Right-click: SuperDock (Super+Alt+Space)", hovered); onClicked: { calendarPopup.mode = ""; Status.toggleSettings("home"); } onRightClicked: bar.openDeck("") }
+        BarLabel { text: "󰣛"; color: Status.settingsOpen ? Theme.cyan : Theme.blue; pixelSize: Theme.iconSize + 2; onHoveredChanged: bar.setTip("SuperFedora Settings (Super+,)  ·  Right-click: Quick AI (Super+`)", hovered); onClicked: { calendarPopup.mode = ""; quickFlyout.mode = ""; Status.toggleSettings("home"); } onRightClicked: bar.openDeck("ai") }
         Workspaces { monitor: bar.hyprMonitor; thickness: bar.implicitHeight }
         BarLabel { id: modeLabel; property string mode: ""; visible: mode !== ""; text: "󰌌 " + mode.toUpperCase() + "  ·  Esc to exit"; color: Theme.yellow; pixelSize: Theme.fontSize; bold: true; onClicked: Hyprland.dispatch("submap reset"); Connections { target: Hyprland; function onRawEvent(event) { if (event.name === "submap") modeLabel.mode = event.data; } } }
     }
 
     // ---------------- Center: Collapsible Left Tool Expander (◂/▸) + Centered Date/Time + Right Notification Bell ----------------
-    Connections { target: Status; function onCenterToggleSeqChanged() { if (bar.modelData === Quickshell.screens[0]) bar.toggleCenter("notifs"); } function onSuperDeckOpenChanged() { if (Status.superDeckOpen) calendarPopup.mode = ""; } function onAppGridOpenChanged() { if (Status.appGridOpen) calendarPopup.mode = ""; } function onRecorderOpenChanged() { if (Status.recorderOpen) calendarPopup.mode = ""; } function onSettingsOpenChanged() { if (Status.settingsOpen) calendarPopup.mode = ""; } }
+    Connections { target: Status; function onCenterToggleSeqChanged() { if (bar.modelData === Quickshell.screens[0]) bar.toggleCenter("notifs"); } function onSuperDeckOpenChanged() { if (Status.superDeckOpen) { calendarPopup.mode = ""; quickFlyout.mode = ""; } } function onAppGridOpenChanged() { if (Status.appGridOpen) { calendarPopup.mode = ""; quickFlyout.mode = ""; } } function onRecorderOpenChanged() { if (Status.recorderOpen) { calendarPopup.mode = ""; quickFlyout.mode = ""; } } function onSettingsOpenChanged() { if (Status.settingsOpen) { calendarPopup.mode = ""; quickFlyout.mode = ""; } } }
 
     BarLabel {
         id: centerClock; anchors.centerIn: parent; property date now: new Date()
@@ -183,17 +191,16 @@ PanelWindow {
                 return "󰐥";
             }
             function iconTip(id) {
-                if (id === "wifi") return "Wi-Fi: " + (!Status.wifiEnabled ? "Off" : (Status.ssid || Status.netType)) + " (Click: Network Settings · Right-click: Toggle Radio)";
-                if (id === "bluetooth") return "Bluetooth (Click: Bluetooth Settings · Right-click: Toggle Power)";
-                if (id === "speaker") return "Speaker: " + (quickPill.muted ? "Muted" : Math.round(quickPill.vol * 100) + "%") + " (Click: Sound Settings · Scroll: Volume · Right-click: Mute)";
-                if (id === "mic") return "Microphone: " + (quickPill.micMuted ? "Muted" : Math.round(quickPill.micVol * 100) + "%") + " (Click: Sound Settings · Right-click: Mute)";
-                if (id === "camera") return "Webcam Driver: " + (Status.webcamEnabled ? "Enabled" : "Disabled") + " (Click: Device Settings · Right-click: Toggle)";
-                if (id === "battery") return "Battery: " + quickPill.batPct + "% (" + (quickPill.batCharging ? "Charging" : "Discharging") + ") · Click: Power Settings";
-                return "Power & Session Settings (Right-click: Lock Screen)";
+                if (id === "wifi") return "Wi-Fi: " + (!Status.wifiEnabled ? "Off" : (Status.ssid || Status.netType)) + " (Click: Quick Wi-Fi · Right-click: Toggle Radio)";
+                if (id === "bluetooth") return "Bluetooth (Click: Quick Bluetooth · Right-click: Toggle Power)";
+                if (id === "speaker") return "Speaker: " + (quickPill.muted ? "Muted" : Math.round(quickPill.vol * 100) + "%") + " (Click: Quick Sound · Scroll: Volume · Right-click: Mute)";
+                if (id === "mic") return "Microphone: " + (quickPill.micMuted ? "Muted" : Math.round(quickPill.micVol * 100) + "%") + " (Click: Quick Mic · Right-click: Mute)";
+                if (id === "camera") return "Webcam Driver: " + (Status.webcamEnabled ? "Enabled" : "Disabled") + " (Click: Quick Privacy · Right-click: Toggle)";
+                if (id === "battery") return "Battery: " + quickPill.batPct + "% (" + (quickPill.batCharging ? "Charging" : "Discharging") + ") · Click: Quick Battery & Power";
+                return "Power & Session Quick Menu (Right-click: Lock Screen)";
             }
-            function iconPage(id) { return id === "wifi" ? "network" : ((id === "bluetooth" || id === "camera") ? "devices" : ((id === "battery" || id === "power") ? "power" : "system")); }
             function iconColor(id, hovered) {
-                if (Status.settingsOpen && Status.settingsPage === quickPill.iconPage(id)) return Theme.cyan;
+                if (quickFlyout.mode === id) return Theme.cyan;
                 if (hovered) return id === "power" ? Theme.red : Theme.cyan;
                 if (id === "wifi") return (!Status.wifiEnabled || Status.netType === "none") ? Theme.muted : Theme.fg;
                 if (id === "bluetooth") return (quickPill.btAdapter && quickPill.btAdapter.enabled) ? (quickPill.btConnected > 0 ? Theme.fg : Theme.fgDim) : Theme.muted;
@@ -211,9 +218,7 @@ PanelWindow {
                 else if (id === "camera") Status.toggleWebcam();
                 else bar.run("qs ipc --any-display call lock activate >/dev/null 2>&1 || loginctl lock-session");
             }
-
             implicitWidth: pillRow.implicitWidth + 6; implicitHeight: Theme.barHeight - 6; color: "transparent"; border.width: 0
-
             RowLayout {
                 id: pillRow; anchors.centerIn: parent; spacing: 2
                 Repeater {
@@ -223,9 +228,7 @@ PanelWindow {
                         readonly property bool isDiv: modelData === "|"
                         readonly property bool isVis: isDiv ? (index > 0 && index < Status.barIcons.length - 1) : (Status.barHiddenIcons.indexOf(modelData) < 0 && (modelData !== "battery" || quickPill.batPresent))
                         visible: isVis; implicitWidth: !isVis ? 0 : (isDiv ? 9 : 26); implicitHeight: Theme.barHeight - 8
-
                         Rectangle { visible: slotItem.isDiv; anchors.centerIn: parent; width: 1; height: 14; color: Theme.border }
-
                         Rectangle {
                             visible: !slotItem.isDiv; anchors.fill: parent; radius: Theme.radiusSm
                             color: slotMouse.pressed ? Theme.bgAlt : (slotMouse.containsMouse ? Theme.bgHover : "transparent")
@@ -237,7 +240,7 @@ PanelWindow {
                                 onContainsMouseChanged: if (!slotItem.isDiv) bar.setTip(quickPill.iconTip(slotItem.modelData), containsMouse)
                                 onPressed: e => { dragStartX = e.x; didDrag = false; }
                                 onPositionChanged: e => { if (pressedButtons & Qt.LeftButton) { const dx = e.x - dragStartX; if (Math.abs(dx) >= 24) { didDrag = true; Status.moveBarIcon(slotItem.modelData, dx > 0 ? 1 : -1); dragStartX = e.x; } } }
-                                onClicked: e => { if (!didDrag) { calendarPopup.mode = ""; if (e.button === Qt.RightButton) quickPill.toggleHardware(slotItem.modelData); else Status.toggleSettings(quickPill.iconPage(slotItem.modelData)); } }
+                                onClicked: e => { if (!didDrag) { if (e.button === Qt.RightButton) quickPill.toggleHardware(slotItem.modelData); else bar.toggleFlyout(slotItem.modelData); } }
                                 onWheel: wheel => {
                                     const step = wheel.angleDelta.y > 0 ? 0.05 : -0.05;
                                     if (slotItem.modelData === "speaker") { const v = Math.max(0, Math.min(1, quickPill.vol + step)); if (quickPill.audioReady) quickPill.sink.audio.volume = v; Status.setSpeakerVolume(v); }

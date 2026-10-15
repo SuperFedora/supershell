@@ -75,8 +75,8 @@ PanelWindow {
     Rectangle {
         id: box
         width: parent.width
-        implicitHeight: (cal.mode === "notifs" ? notifBox.implicitHeight : (cal.mode === "date" ? dateCol.implicitHeight : timeCol.implicitHeight)) + 24
-        color: Theme.bg; radius: Theme.radius; border.width: 2; border.color: Theme.blue
+        implicitHeight: (cal.mode === "notifs" ? notifBox.implicitHeight : (cal.mode === "date" ? dateCol.implicitHeight : timeCol.implicitHeight)) + 64
+        color: Theme.bg; radius: Theme.radius; border.width: 1; border.color: Theme.border
 
         // ---------------- Notifs Mode: 16-Bit Workstation Notification Center ----------------
         ColumnLayout {
@@ -94,50 +94,50 @@ PanelWindow {
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
             spacing: 8
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    BarLabel { text: "<"; bold: true; pixelSize: Theme.fontSize; onClicked: cal.stepMonth(-1) }
+            RowLayout {
+                Layout.fillWidth: true
+                BarLabel { text: "<"; bold: true; pixelSize: Theme.fontSize; onClicked: cal.stepMonth(-1) }
+                Item {
+                    Layout.fillWidth: true; implicitHeight: Theme.barHeight
+                    Text {
+                        anchors.centerIn: parent
+                        text: Qt.formatDate(new Date(cal.viewYear, cal.viewMonth, 1), "MMMM yyyy")
+                        color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.bold: true
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: cal.resetToToday() }
+                }
+                BarLabel { text: ">"; bold: true; pixelSize: Theme.fontSize; onClicked: cal.stepMonth(1) }
+            }
+
+            GridLayout {
+                Layout.fillWidth: true; columns: 7; columnSpacing: 2; rowSpacing: 2
+
+                Repeater {
+                    model: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
                     Item {
-                        Layout.fillWidth: true; implicitHeight: Theme.barHeight
+                        required property string modelData
+                        Layout.fillWidth: true; implicitHeight: 24
                         Text {
-                            anchors.centerIn: parent
-                            text: Qt.formatDate(new Date(cal.viewYear, cal.viewMonth, 1), "MMMM yyyy")
-                            color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.bold: true
-                        }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: cal.resetToToday() }
-                    }
-                    BarLabel { text: ">"; bold: true; pixelSize: Theme.fontSize; onClicked: cal.stepMonth(1) }
-                }
-
-                GridLayout {
-                    Layout.fillWidth: true; columns: 7; columnSpacing: 2; rowSpacing: 2
-
-                    Repeater {
-                        model: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
-                        Item {
-                            required property string modelData
-                            Layout.fillWidth: true; implicitHeight: 24
-                            Text {
-                                anchors.centerIn: parent; text: parent.modelData; color: Theme.blue
-                                font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.bold: true
-                            }
-                        }
-                    }
-
-                    Repeater {
-                        model: cal.cells
-                        Rectangle {
-                            required property var modelData
-                            Layout.fillWidth: true; implicitHeight: 28; radius: Theme.radiusSm
-                            color: modelData.isToday ? Theme.blue : "transparent"
-                            Text {
-                                anchors.centerIn: parent; text: String(parent.modelData.day)
-                                color: parent.modelData.isToday ? Theme.bg : (parent.modelData.inMonth ? Theme.fg : Theme.muted)
-                                font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.bold: parent.modelData.isToday
-                            }
+                            anchors.centerIn: parent; text: parent.modelData; color: Theme.blue
+                            font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.bold: true
                         }
                     }
                 }
+
+                Repeater {
+                    model: cal.cells
+                    Rectangle {
+                        required property var modelData
+                        Layout.fillWidth: true; implicitHeight: 28; radius: Theme.radiusSm
+                        color: modelData.isToday ? Theme.blue : "transparent"
+                        Text {
+                            anchors.centerIn: parent; text: String(parent.modelData.day)
+                            color: parent.modelData.isToday ? Theme.bg : (parent.modelData.inMonth ? Theme.fg : Theme.muted)
+                            font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.bold: parent.modelData.isToday
+                        }
+                    }
+                }
+            }
         }
 
         // ---------------- Time Mode: Clock Settings & World Clocks ----------------
@@ -213,27 +213,28 @@ PanelWindow {
                 }
             }
 
-            Repeater {
-                model: [
-                    { label: "+ Add World Clock...", accent: false,
-                      cmd: "tz=$(timedatectl list-timezones | fuzzel --dmenu --prompt 'Add World Clock > ' --width 42) && [ -n \"$tz\" ] && (grep -Fxq \"$tz\" ~/.config/superfedora/world-clocks.txt || echo \"$tz\" >> ~/.config/superfedora/world-clocks.txt)", close: true },
-                    { label: "More Settings (timedatectl TUI)...", accent: true,
-                      cmd: "kitty --class floating-term -e bash -c 'timedatectl status; echo; cal -3 2>/dev/null || cal; echo; read -r -p \"Set timezone (Enter to skip): \" z; [ -n \"$z\" ] && timedatectl set-timezone \"$z\"'", close: true }
-                ]
-                Rectangle {
-                    required property var modelData
-                    Layout.fillWidth: true; implicitHeight: 28; radius: Theme.radiusSm
-                    color: actM.containsMouse ? Theme.bgHover : (modelData.accent ? Theme.bgAlt : "transparent")
-                    Text {
-                        anchors { verticalCenter: parent.verticalCenter; left: parent.left; leftMargin: 6 }
-                        text: parent.modelData.label; color: parent.modelData.accent ? Theme.blue : Theme.fg
-                        font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.bold: parent.modelData.accent
-                    }
-                    MouseArea {
-                        id: actM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                        onClicked: { cal.runShell(parent.modelData.cmd, parent.modelData.close); Status.refresh(); }
-                    }
-                }
+            Rectangle {
+                Layout.fillWidth: true; implicitHeight: 26; radius: Theme.radiusSm
+                color: addWcM.containsMouse ? Theme.bgHover : "transparent"
+                Text { anchors { verticalCenter: parent.verticalCenter; left: parent.left; leftMargin: 6 } text: "+ Add World Clock..."; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1 }
+                MouseArea { id: addWcM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { cal.runShell("tz=$(timedatectl list-timezones | fuzzel --dmenu --prompt 'Add World Clock > ' --width 42) && [ -n \"$tz\" ] && (grep -Fxq \"$tz\" ~/.config/superfedora/world-clocks.txt || echo \"$tz\" >> ~/.config/superfedora/world-clocks.txt)", true); Status.refresh(); } }
+            }
+        }
+
+        // ---------------- Bottom "More settings ›" Footer -> SuperSettings ----------------
+        Rectangle {
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 10 }
+            implicitHeight: 32; radius: 5
+            color: calMoreM.containsMouse ? Theme.bgHover : Theme.bgAlt; border.width: 1; border.color: calMoreM.containsMouse ? Theme.blue : Theme.border
+            RowLayout {
+                anchors { fill: parent; leftMargin: 12; rightMargin: 12 } spacing: 8
+                Text { text: "󰒓"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize }
+                Text { text: cal.mode === "notifs" ? "More notification settings" : "More date & time settings"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold; Layout.fillWidth: true }
+                Text { text: "›"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize + 2 }
+            }
+            MouseArea {
+                id: calMoreM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                onClicked: { cal.mode = ""; Status.openSettings("notifications"); }
             }
         }
     }
