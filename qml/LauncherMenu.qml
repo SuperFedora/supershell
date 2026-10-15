@@ -64,18 +64,9 @@ ColumnLayout {
                 Rectangle {
                     id: wpCard; required property string modelData
                     readonly property bool isCur: Status.currentWallpaper === modelData
-                    readonly property string shortName: modelData.split("/").pop().replace(/\.(png|jpg|jpeg|webp)$/i, "")
                     Layout.fillWidth: true; implicitHeight: 92; radius: 6; color: Theme.bgAlt
                     border.width: isCur ? 2 : 1; border.color: isCur ? Theme.blue : (wpCardM.containsMouse ? Theme.cyan : Theme.border); clip: true
                     Image { anchors { fill: parent; margins: 2 } source: "file://" + wpCard.modelData; fillMode: Image.PreserveAspectCrop; asynchronous: true; sourceSize.width: 240; sourceSize.height: 135 }
-                    Rectangle {
-                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 2 } height: 22
-                        color: Qt.rgba(0, 0, 0, 0.65)
-                        RowLayout {
-                            anchors { fill: parent; leftMargin: 8; rightMargin: 8 } spacing: 4
-                            Text { text: (wpCard.isCur ? "󰄬 " : "") + wpCard.shortName; color: wpCard.isCur ? Theme.cyan : "#ffffff"; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.weight: wpCard.isCur ? Font.DemiBold : Font.Normal; elide: Text.ElideRight; Layout.fillWidth: true }
-                        }
-                    }
                     MouseArea { id: wpCardM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.setWallpaper(wpCard.modelData) }
                 }
             }

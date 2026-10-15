@@ -71,10 +71,13 @@ PanelWindow {
     function close() { root.menuEntry = null; root.dragEntry = null; Status.appGridOpen = false; }
 
     function launchEntry(item) {
-        if (!item) return;
-        root.close();
-        if (item.entry && typeof item.entry.execute === "function") item.entry.execute();
-        else Quickshell.execDetached(["sh", "-c", "gtk-launch '" + item.id + "' 2>/dev/null || " + item.id.toLowerCase()]);
+        if (!item) return; root.close(); const k = String(item.id || "").toLowerCase();
+        if (k === "yazi" || k === "lf" || k === "superfiles") Quickshell.execDetached(["sh", "-c", "~/.local/bin/xdg-terminal-exec --files"]);
+        else if (k === "nvim" || k === "hx" || k === "helix" || k === "micro") Quickshell.execDetached(["sh", "-c", "~/.local/bin/xdg-terminal-exec --editor"]);
+        else if (k === "btop" || k === "htop" || k === "btm") Quickshell.execDetached(["sh", "-c", "~/.local/bin/xdg-terminal-exec --monitor"]);
+        else if (item.entry && typeof item.entry.execute === "function" && !item.entry.runInTerminal) item.entry.execute();
+        else if (item.entry && item.entry.runInTerminal) Quickshell.execDetached(["sh", "-c", "~/.local/bin/xdg-terminal-exec -e " + k]);
+        else Quickshell.execDetached(["sh", "-c", "gtk-launch '" + item.id + "' 2>/dev/null || " + k]);
     }
 
     function dropToDock() {

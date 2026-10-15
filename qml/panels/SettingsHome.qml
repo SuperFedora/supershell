@@ -15,7 +15,6 @@ Item {
     readonly property bool btEnabled: btAdapter !== null && btAdapter.enabled
     readonly property var btList: btAdapter ? Bluetooth.devices.values.slice(0, 3) : []
     readonly property string wpPath: Status.currentWallpaper ? ("file://" + Status.currentWallpaper) : ""
-    readonly property string wpName: Status.currentWallpaper ? Status.currentWallpaper.split("/").pop() : "Default wallpaper"
 
     readonly property var themeSwatches: [
         { id: "01-crimson", l: "Crimson", hex: "#f7768e" }, { id: "02-scarlet", l: "Scarlet", hex: "#ff5a5f" },
@@ -55,11 +54,6 @@ Item {
                             implicitWidth: 132; implicitHeight: 76; radius: 6; color: Theme.bg; border.width: 2; border.color: wpMonM.containsMouse ? Theme.cyan : Theme.blue; clip: true
                             Image { id: wpImg; anchors { fill: parent; margins: 2 } source: home.wpPath; fillMode: Image.PreserveAspectCrop; asynchronous: true; cache: false }
                             Text { visible: wpImg.status !== Image.Ready; anchors.centerIn: parent; text: "󰍹"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 10 }
-                            Rectangle {
-                                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 2 } height: 20; radius: 4
-                                color: Qt.rgba(0, 0, 0, wpMonM.containsMouse ? 0.78 : 0.52)
-                                Text { anchors.centerIn: parent; text: wpMonM.containsMouse ? "󰸉 Change wallpaper" : ("󰸉 " + home.wpName); color: "#ffffff"; font.family: Theme.font; font.pixelSize: Theme.fontSize - 4; font.weight: Font.DemiBold; elide: Text.ElideRight; width: parent.width - 8; horizontalAlignment: Text.AlignHCenter }
-                            }
                             MouseArea { id: wpMonM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("personalization", "ui-saver") }
                         }
                         Rectangle { Layout.alignment: Qt.AlignHCenter; width: 42; height: 4; radius: 2; color: wpMonM.containsMouse ? Theme.blue : Theme.border }
