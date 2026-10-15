@@ -4,7 +4,7 @@ import Quickshell.Bluetooth
 import Quickshell.Services.UPower
 import ".."
 
-// Declarative Cross-Listed Windows-Style Settings Catalog (34 Settings across 10 First-Principles Pillars).
+// Declarative Cross-Listed Windows-Style Settings Catalog (38 Settings across 10 First-Principles Pillars).
 QtObject {
     id: reg
     readonly property var btAdapter: Bluetooth.defaultAdapter
@@ -15,16 +15,16 @@ QtObject {
     readonly property bool batCharging: batPresent && (batDev.state === UPowerDeviceState.Charging || batDev.state === UPowerDeviceState.FullyCharged)
 
     readonly property var categories: [
-        { id: "system",          tag: "[SYS]", icon: "󰍹", title: "System & Display",         sub: "Display scale, brightness, night light, sound & storage" },
+        { id: "system",          tag: "[SYS]", icon: "󰍹", title: "System & Display",         sub: "Display scale, GPU VA-API codecs, brightness, night light, sound & storage" },
         { id: "devices",         tag: "[DEV]", icon: "󰂯", title: "Bluetooth & Devices",      sub: "Printers, scanners, Bluetooth, touchpad, keyboard & camera" },
         { id: "network",         tag: "[NET]", icon: "󰤨", title: "Network & Internet",       sub: "Wi-Fi, Ethernet, VPN / Tailscale, firewall & DNS" },
         { id: "personalization", tag: "[UI]",  icon: "󰸉", title: "Personalization",          sub: "16-Bit palettes, Day/Night mode, bevels, OpenRGB & saver" },
         { id: "windowing",       tag: "[WM]",  icon: "󰕮", title: "Windowing & Docks",        sub: "Top bar icons, Quattro dock, workspace tiling & window gaps" },
-        { id: "notifications",   tag: "[NTF]", icon: "󰂚", title: "Notifications & Banners",  sub: "Do Not Disturb, alert history, 16-bit banners, cast & clocks" },
+        { id: "notifications",   tag: "[NTF]", icon: "󰂚", title: "Notifications & Banners",  sub: "Do Not Disturb, alert history, 16-bit banners, 10 Cast Specialists & clocks" },
         { id: "apps",            tag: "[APP]", icon: "󰀻", title: "Apps & Source Forge",      sub: "Chromeless Firefox WebApps, -march=native compiler & startup" },
-        { id: "accounts",        tag: "[USR]", icon: "󰄽", title: "Accounts & Users",         sub: "User profile, lock screen, biometrics, SSH keys & session" },
+        { id: "accounts",        tag: "[USR]", icon: "󰄽", title: "Accounts & Users",         sub: "User profile, lock screen, biometrics, SSH keys & workstation clone" },
         { id: "accessibility",   tag: "[ACC]", icon: "󰌌", title: "Accessibility",            sub: "UI & text size, screen zoom, contrast, motion, Orca & audio" },
-        { id: "power",           tag: "[PWR]", icon: "󰁹", title: "Power, Updates & State",   sub: "Battery tank, Coffee idle timer, updates, AI & Btrfs rollback" }
+        { id: "power",           tag: "[PWR]", icon: "󰁹", title: "Power, Modes & Vault",     sub: "Workstation modes, Battery tank, Coffee idle timer, updates & Btrfs Time-Machine" }
     ]
 
     readonly property var items: [
@@ -32,12 +32,15 @@ QtObject {
         { id: "disp-scale", cats: ["system", "accessibility"], tag: "[SYS]", title: "Monitor Resolution & HiDPI Scale",
           sub: "Wayland fractional & integer output scaling for sharp text and workstation ergonomics", kw: "display monitor screen resolution scale hidpi dpi 1x 1.25x 1.5x fractional",
           acts: [ { l: "[ 1.0x NATIVE ]", act: "cmd", v: "hyprctl keyword monitor ,preferred,auto,1" }, { l: "[ 1.25x BALANCED ]", act: "cmd", v: "hyprctl keyword monitor ,preferred,auto,1.25" }, { l: "[ 1.5x HI-DPI ]", act: "cmd", v: "hyprctl keyword monitor ,preferred,auto,1.5" } ] },
+        { id: "sys-gpu", cats: ["system", "devices"], tag: "[SYS]", title: "GPU Hardware Video & Zero-Copy DMABUF (VA-API)",
+          sub: Status.gpuArch + "  ·  Driver: " + Status.gpuDriver + "  ·  " + Status.gpuCodecs + "  ·  " + Status.gpuDmabuf, kw: "gpu video vaapi codecs ffmpeg dmabuf hardware acceleration amd intel nvidia firefox",
+          acts: [ { l: "[ OPTIMIZE GPU / VA-API ]", act: "cmd", v: "~/.local/bin/supersettings apply hardware optimize || ~/.local/bin/sf hardware optimize", on: Status.gpuDmabuf.includes("Active") }, { l: "[ PROBE GPU ]", act: "cmd", v: "kitty --class floating-tui -e sh -c '~/.local/bin/sf hardware status; echo; vainfo 2>/dev/null || true; read -n 1'" } ] },
         { id: "disp-bright", cats: ["system", "power"], tag: "[SYS]", title: "Display Panel Brightness",
           sub: "Current Backlight Level: " + Math.round(Status.brightness * 100) + "%  ·  Hardware ACPI / eDP Backlight", kw: "brightness backlight screen dim luminance",
           acts: [ { l: "[ - 10% ]", act: "bright", v: -0.1 }, { l: "[ 50% ]", act: "brightSet", v: 0.5, on: Math.abs(Status.brightness - 0.5) < 0.06 }, { l: "[ 100% ]", act: "brightSet", v: 1.0, on: Status.brightness >= 0.95 }, { l: "[ + 10% ]", act: "bright", v: 0.1 } ] },
         { id: "disp-night", cats: ["system", "personalization", "accessibility"], tag: "[SYS]", title: "Night Light & Eye Care Filter (wlsunset)",
           sub: Status.nightLightRunning ? "ACTIVE  ·  Warm color temperature filter reducing blue light" : "OFF  ·  Standard calibrated sRGB display temperature (6500K)", kw: "night light blue filter warm eye care wlsunset kelvin 4000k 3400k",
-          acts: [ { l: "[ 4000K WARM ]", act: "cmd", v: "~/.local/bin/supersettings nightlight 4000 || ~/.local/bin/sf settings-apply nightlight 4000", on: Status.nightLightRunning }, { l: "[ 3400K EXTRA WARM ]", act: "cmd", v: "~/.local/bin/supersettings nightlight 3400 || ~/.local/bin/sf settings-apply nightlight 3400" }, { l: "[ OFF (6500K) ]", act: "cmd", v: "~/.local/bin/supersettings nightlight off || ~/.local/bin/sf settings-apply nightlight off", on: !Status.nightLightRunning } ] },
+          acts: [ { l: "[ 4000K WARM ]", act: "cmd", v: "~/.local/bin/supersettings apply nightlight 4000 || ~/.local/bin/sf settings-apply nightlight 4000", on: Status.nightLightRunning }, { l: "[ 3400K EXTRA WARM ]", act: "cmd", v: "~/.local/bin/supersettings apply nightlight 3400 || ~/.local/bin/sf settings-apply nightlight 3400" }, { l: "[ OFF (6500K) ]", act: "cmd", v: "~/.local/bin/supersettings apply nightlight off || ~/.local/bin/sf settings-apply nightlight off", on: !Status.nightLightRunning } ] },
         { id: "snd-spk", cats: ["system", "devices"], tag: "[SYS]", title: "Output Speaker Volume & Mute",
           sub: (Status.spkMuted ? "MUTED  ·  " : "ACTIVE  ·  ") + "Output Level: " + Math.round(Status.spkVol * 100) + "%  ·  PipeWire Default Audio Sink", kw: "sound audio speaker volume output mute pipewire sink headphones",
           acts: [ { l: Status.spkMuted ? "[ UNMUTE ]" : "[ MUTE ]", act: "spkMute", on: Status.spkMuted, danger: Status.spkMuted }, { l: "[ - 10% ]", act: "spkStep", v: -0.1 }, { l: "[ 60% ]", act: "spkSet", v: 0.6 }, { l: "[ + 10% ]", act: "spkStep", v: 0.1 }, { l: "[ MIXER ]", act: "cmd", v: "pavucontrol || kitty --class floating-tui -e wiremix" } ] },
@@ -105,9 +108,12 @@ QtObject {
         { id: "ntf-banners", cats: ["notifications", "personalization", "accessibility"], tag: "[NTF]", title: "16-Bit Full-Width Workstation Banners",
           sub: "Arcade overlay banners for login readiness, high-priority warnings, updates & checkpoints", kw: "banner banners ready warning update complete checkpoint overlay alert",
           acts: [ { l: "[ READY ]", act: "banner", v: "ready" }, { l: "[ WARNING ]", act: "banner", v: "warning", danger: true }, { l: "[ UPDATE COMPLETE ]", act: "banner", v: "update" }, { l: "[ CHECKPOINT SAVED ]", act: "banner", v: "checkpoint" } ] },
-        { id: "ntf-cast", cats: ["notifications"], tag: "[NTF]", title: "16-Bit Character Cast Comms Popups",
-          sub: "5-zone workstation specialist comms: AI, Security, Forge Builder, Engineer & App", kw: "cast character comms portrait popup ai security builder engineer app",
-          acts: [ { l: "[ AI ]", act: "cast", v: "ai" }, { l: "[ SECURITY ]", act: "cast", v: "security", danger: true }, { l: "[ FORGE ]", act: "cast", v: "builder" }, { l: "[ ENGINEER ]", act: "cast", v: "engineer" }, { l: "[ APP ]", act: "cast", v: "app" } ] },
+        { id: "ntf-cast", cats: ["notifications"], tag: "[NTF]", title: "16-Bit Cast Comms — Core Specialists (1–5)",
+          sub: "Animated pixel-art comms: AI Agent, Security Guard, Forge Builder, System Engineer & App", kw: "cast character comms portrait popup ai security builder engineer app",
+          acts: [ { l: "[ 1: AI ]", act: "cast", v: "ai" }, { l: "[ 2: SECURITY ]", act: "cast", v: "security", danger: true }, { l: "[ 3: FORGE ]", act: "cast", v: "builder" }, { l: "[ 4: ENGINEER ]", act: "cast", v: "engineer" }, { l: "[ 5: APP ]", act: "cast", v: "app" } ] },
+        { id: "ntf-cast-ext", cats: ["notifications"], tag: "[NTF]", title: "16-Bit Cast Comms — Tactical & Fleet Specialists (6–0)",
+          sub: "Animated pixel-art comms: Network Navigator, System Medic, Vault Archivist, Fleet Commander & Audio Synth", kw: "cast character comms portrait popup navigator medic archivist commander synth",
+          acts: [ { l: "[ 6: NAVIGATOR ]", act: "cast", v: "navigator" }, { l: "[ 7: MEDIC ]", act: "cast", v: "medic" }, { l: "[ 8: ARCHIVIST ]", act: "cast", v: "archivist" }, { l: "[ 9: COMMANDER ]", act: "cast", v: "commander" }, { l: "[ 0: SYNTH ]", act: "cast", v: "synth" } ] },
         { id: "ntf-clock", cats: ["notifications", "system"], tag: "[NTF]", title: "Top Bar Clock Format & Timezone",
           sub: "Timezone: " + Status.localTz + "  ·  Format: " + (Status.clock24h ? "24-Hour" : "12-Hour AM/PM") + (Status.clockSeconds ? " (with seconds)" : ""), kw: "clock time date timezone 24h 12h seconds world clock calendar",
           acts: [ { l: Status.clock24h ? "[ 24-HOUR ]" : "[ 12-HOUR ]", act: "clock24", on: Status.clock24h }, { l: Status.clockSeconds ? "[ SECONDS: ON ]" : "[ SECONDS: OFF ]", act: "clockSec", on: Status.clockSeconds }, { l: Status.autoTz ? "[ AUTO TZ: ON ]" : "[ AUTO TZ: OFF ]", act: "cmd", v: "gsettings set org.gnome.desktop.datetime automatic-timezone " + (!Status.autoTz), on: Status.autoTz } ] },
@@ -131,18 +137,21 @@ QtObject {
         // 9. ACCESSIBILITY
         { id: "acc-fontsize", cats: ["accessibility", "system", "personalization"], tag: "[ACC]", title: "Text & UI Scaling Size (Touch & Vision Ergonomics)",
           sub: "Current UI Font Size: " + Theme.fontSize + "px (Icon Size: " + Theme.iconSize + "px)  ·  Scales bars, docks & panels immediately", kw: "accessibility a11y vision font text size scale large small readable touch",
-          acts: [ { l: "[ COMPACT (13px) ]", act: "cmd", v: "~/.local/bin/supersettings ui-scale 13 || ~/.local/bin/sf settings-apply ui-scale 13", on: Theme.fontSize === 13 }, { l: "[ DEFAULT (14px) ]", act: "cmd", v: "~/.local/bin/supersettings ui-scale 14 || ~/.local/bin/sf settings-apply ui-scale 14", on: Theme.fontSize === 14 }, { l: "[ LARGE (16px) ]", act: "cmd", v: "~/.local/bin/supersettings ui-scale 16 || ~/.local/bin/sf settings-apply ui-scale 16", on: Theme.fontSize === 16 }, { l: "[ EXTRA LARGE (18px) ]", act: "cmd", v: "~/.local/bin/supersettings ui-scale 18 || ~/.local/bin/sf settings-apply ui-scale 18", on: Theme.fontSize >= 18 } ] },
+          acts: [ { l: "[ COMPACT (13px) ]", act: "cmd", v: "~/.local/bin/supersettings apply ui-scale 13 || ~/.local/bin/sf settings-apply ui-scale 13", on: Theme.fontSize === 13 }, { l: "[ DEFAULT (14px) ]", act: "cmd", v: "~/.local/bin/supersettings apply ui-scale 14 || ~/.local/bin/sf settings-apply ui-scale 14", on: Theme.fontSize === 14 }, { l: "[ LARGE (16px) ]", act: "cmd", v: "~/.local/bin/supersettings apply ui-scale 16 || ~/.local/bin/sf settings-apply ui-scale 16", on: Theme.fontSize === 16 }, { l: "[ EXTRA LARGE (18px) ]", act: "cmd", v: "~/.local/bin/supersettings apply ui-scale 18 || ~/.local/bin/sf settings-apply ui-scale 18", on: Theme.fontSize >= 18 } ] },
         { id: "acc-zoom", cats: ["accessibility", "system"], tag: "[ACC]", title: "Desktop Magnifier & Screen Zoom",
           sub: "Zoom in on any workspace region using Super + Equals (=) or Super + Minus (-)", kw: "accessibility zoom magnifier screen vision enlarge",
           acts: [ { l: "[ ZOOM IN (+) ]", act: "cmd", v: "~/.config/hypr/scripts/zoom.sh in" }, { l: "[ ZOOM OUT (-) ]", act: "cmd", v: "~/.config/hypr/scripts/zoom.sh out" }, { l: "[ RESET 1.0x ]", act: "cmd", v: "hyprctl keyword cursor:zoom_factor 1.0" } ] },
         { id: "acc-motion", cats: ["accessibility", "personalization", "windowing"], tag: "[ACC]", title: "Reduce Motion & High-Contrast 90° Bevels",
           sub: "Animations: " + (Status.animEnabled ? "ENABLED" : "REDUCED (INSTANT)") + "  ·  Corners: " + (Theme.corners === "square" ? "SHARP 90° CARTRIDGE" : "ROUNDED"), kw: "accessibility reduce motion animations high contrast borders bevels square",
-          acts: [ { l: Status.animEnabled ? "[ MOTION: SMOOTH ]" : "[ MOTION: REDUCED ]", act: "cmd", v: "~/.local/bin/supersettings animations toggle || ~/.local/bin/sf settings-apply animations toggle", on: !Status.animEnabled }, { l: Theme.corners === "square" ? "[ 90° SHARP BEVELS ]" : "[ ROUNDED BEVELS ]", act: "cmd", v: "~/.local/bin/supertheme corners toggle || ~/.local/bin/sf theme corners toggle", on: Theme.corners === "square" } ] },
+          acts: [ { l: Status.animEnabled ? "[ MOTION: SMOOTH ]" : "[ MOTION: REDUCED ]", act: "cmd", v: "~/.local/bin/supersettings apply animations toggle || ~/.local/bin/sf settings-apply animations toggle", on: !Status.animEnabled }, { l: Theme.corners === "square" ? "[ 90° SHARP BEVELS ]" : "[ ROUNDED BEVELS ]", act: "cmd", v: "~/.local/bin/supertheme corners toggle || ~/.local/bin/sf theme corners toggle", on: Theme.corners === "square" } ] },
         { id: "acc-orca", cats: ["accessibility"], tag: "[ACC]", title: "Screen Reader (Orca Speech Synthesizer) & Mono Audio",
           sub: "Screen Reader: " + (Status.orcaRunning ? "ACTIVE (SPEAKING)" : "OFF") + "  ·  Audio Mode: " + (Status.monoAudio ? "MONO" : "STEREO"), kw: "accessibility screen reader orca speech blind hearing mono audio",
-          acts: [ { l: Status.orcaRunning ? "[ ORCA READER: ON ]" : "[ ORCA READER: OFF ]", act: "cmd", v: "~/.local/bin/supersettings orca toggle || ~/.local/bin/sf settings-apply orca toggle", on: Status.orcaRunning }, { l: Status.monoAudio ? "[ AUDIO: MONO ]" : "[ AUDIO: STEREO ]", act: "cmd", v: "~/.local/bin/supersettings mono-audio toggle || ~/.local/bin/sf settings-apply mono-audio toggle", on: Status.monoAudio } ] },
+          acts: [ { l: Status.orcaRunning ? "[ ORCA READER: ON ]" : "[ ORCA READER: OFF ]", act: "cmd", v: "~/.local/bin/supersettings apply orca toggle || ~/.local/bin/sf settings-apply orca toggle", on: Status.orcaRunning }, { l: Status.monoAudio ? "[ AUDIO: MONO ]" : "[ AUDIO: STEREO ]", act: "cmd", v: "~/.local/bin/supersettings apply mono-audio toggle || ~/.local/bin/sf settings-apply mono-audio toggle", on: Status.monoAudio } ] },
 
-        // 10. POWER, UPDATES & RECOVERY
+        // 10. POWER, MODES & VAULT
+        { id: "pwr-mode", cats: ["power", "system", "personalization"], tag: "[PWR]", title: "16-Bit Workstation Mode Profile (Tuned + Visual + Audio)",
+          sub: "Active Profile: " + Status.workstationMode.toUpperCase() + "  ·  PackageKit: " + Status.pkgkitMode, kw: "mode profile stealth balanced forge arcade power performance governor",
+          acts: [ { l: "[ STEALTH ]", act: "cmd", v: "~/.local/bin/supersettings apply mode stealth || ~/.local/bin/sf mode stealth", on: Status.workstationMode === "stealth" }, { l: "[ BALANCED ]", act: "cmd", v: "~/.local/bin/supersettings apply mode balanced || ~/.local/bin/sf mode balanced", on: Status.workstationMode === "balanced" }, { l: "[ FORGE ]", act: "cmd", v: "~/.local/bin/supersettings apply mode forge || ~/.local/bin/sf mode forge", on: Status.workstationMode === "forge" }, { l: "[ ARCADE ]", act: "cmd", v: "~/.local/bin/supersettings apply mode arcade || ~/.local/bin/sf mode arcade", on: Status.workstationMode === "arcade" } ] },
         { id: "pwr-battery", cats: ["power", "system"], tag: "[PWR]", title: "Battery Health & ThinkPad Charge Thresholds",
           sub: (reg.batPresent ? (reg.batPct + "% (" + (reg.batCharging ? "CHARGING" : "DISCHARGING") + ")") : "AC LINE POWER") + (Status.bat0Present ? ("  ·  BAT0: " + Status.bat0Threshold) : ""), kw: "power battery charge threshold thinkpad longevity travel ac energy tank",
           acts: [ { l: "[ 80% LONGEVITY ]", act: "cmd", v: "pkexec sh -c 'echo 75 > /sys/class/power_supply/BAT0/charge_control_start_threshold; echo 80 > /sys/class/power_supply/BAT0/charge_control_end_threshold' && qs ipc call status refresh" }, { l: "[ 100% TRAVEL ]", act: "cmd", v: "pkexec sh -c 'echo 0 > /sys/class/power_supply/BAT0/charge_control_start_threshold; echo 100 > /sys/class/power_supply/BAT0/charge_control_end_threshold' && qs ipc call status refresh" } ] },
@@ -152,9 +161,12 @@ QtObject {
         { id: "pwr-updates", cats: ["power", "system", "apps"], tag: "[PWR]", title: "System Packages (DNF), Firmware (fwupd) & SuperFedora Updates",
           sub: "Keep Fedora Linux packages, LVFS hardware firmware, and SuperFedora modules up to date", kw: "update updates upgrade dnf firmware fwupd bios system packages",
           acts: [ { l: "[ DNF SYSTEM UPGRADE ]", act: "cmd", v: "kitty --class floating-tui -e sh -c 'sudo dnf upgrade --refresh; (~/.local/bin/supernotify --banner update || ~/.local/bin/sf notify --banner update); read -n 1'" }, { l: "[ FIRMWARE (FWUPD) ]", act: "cmd", v: "kitty --class floating-tui -e sh -c 'fwupdmgr refresh && fwupdmgr get-updates; read -n 1'" }, { l: "[ SUPERFEDORA AUDIT ]", act: "cmd", v: "kitty --class floating-tui -e sh -c '~/.local/bin/sf status; read -n 1'" } ] },
-        { id: "pwr-btrfs", cats: ["power", "system"], tag: "[PWR]", title: "Btrfs Atomic Snapper Checkpoints & Baseline Rollback",
-          sub: "Create an instant root filesystem snapshot before risky changes or roll back to baseline", kw: "btrfs snapshot snapper checkpoint rollback recovery backup restore",
-          acts: [ { l: "[ + SAVE CHECKPOINT ]", act: "cmd", v: "(pkexec snapper -c root create -d 'Settings Checkpoint' || ~/.local/bin/sf rollback --create 'Settings Checkpoint') && (~/.local/bin/supernotify --banner checkpoint >/dev/null 2>&1 || ~/.local/bin/sf notify --banner checkpoint >/dev/null 2>&1 || true)", on: true }, { l: "[ SNAPSHOT MANAGER ]", act: "cmd", v: "kitty --class floating-tui -e ~/.local/bin/sf rollback" } ] },
+        { id: "pwr-btrfs", cats: ["power", "system"], tag: "[PWR]", title: "Btrfs Time-Machine Snapshots & Baseline Rollback",
+          sub: "Create an instant root filesystem snapshot before risky changes or diff/restore from Vault", kw: "btrfs snapshot snapper checkpoint rollback recovery backup restore time machine vault",
+          acts: [ { l: "[ + SAVE CHECKPOINT ]", act: "cmd", v: "(~/.local/bin/sf snapshot create 'Settings Checkpoint' || pkexec snapper -c root create -d 'Settings Checkpoint') && (~/.local/bin/supernotify --banner checkpoint >/dev/null 2>&1 || true)", on: true }, { l: "[ TIME-MACHINE TUI ]", act: "cmd", v: "kitty --class floating-tui -e ~/.local/bin/sf tui snapshot" } ] },
+        { id: "pwr-clone", cats: ["power", "accounts"], tag: "[PWR]", title: "Declarative Workstation Backup & Clone (workstation.toml)",
+          sub: "Export or import theme, dock, forged binaries, WebApps, and mode state via ~/.config/superfedora/workstation.toml", kw: "export import backup clone workstation toml config declarative",
+          acts: [ { l: "[ EXPORT WORKSTATION.TOML ]", act: "cmd", v: "~/.local/bin/sf export && notify-send -a SuperFedora 'Workstation Export' 'Saved ~/.config/superfedora/workstation.toml'" }, { l: "[ APPLY WORKSTATION.TOML ]", act: "cmd", v: "kitty --class floating-tui -e sh -c '~/.local/bin/sf import ~/.config/superfedora/workstation.toml; echo; read -n 1'" } ] },
         { id: "pwr-session", cats: ["power", "accounts"], tag: "[PWR]", title: "Session Power Actions (Lock, Suspend, Reboot & Shutdown)",
           sub: "Hardware power states and session lifecycle controls", kw: "power off shutdown reboot restart sleep suspend lock session",
           acts: [ { l: "[ LOCK ]", act: "cmdClose", v: "qs ipc --any-display call lock activate >/dev/null 2>&1 || loginctl lock-session" }, { l: "[ SUSPEND ]", act: "cmdClose", v: "systemctl suspend" }, { l: "[ REBOOT ]", act: "cmdClose", v: "systemctl reboot", danger: true }, { l: "[ POWER OFF ]", act: "cmdClose", v: "systemctl poweroff", danger: true } ] }
