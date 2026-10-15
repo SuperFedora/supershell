@@ -14,8 +14,8 @@ PanelWindow {
     readonly property var hyprMon: Hyprland.monitorFor(pop.targetScreen)
     readonly property bool isTargetMon: !Hyprland.focusedMonitor ? (pop.targetScreen === Quickshell.screens[0]) : (pop.hyprMon !== null && pop.hyprMon.id === Hyprland.focusedMonitor.id)
     readonly property string activeTab: Status.normalizeDeckTab(Status.superDeckSection)
-    readonly property int fullW: Math.max(960, Math.min(1080, Math.round(pop.targetScreen.width * 0.62)))
-    readonly property int fullH: Math.max(410, Math.min(460, Math.round(pop.targetScreen.height * 0.43)))
+    readonly property int fullW: Math.max(1060, Math.min(1340, Math.round(pop.targetScreen.width * 0.76)))
+    readonly property int fullH: Math.max(660, Math.min(840, Math.round(pop.targetScreen.height * 0.78)))
     property string confirmCmd: ""; property string confirmLabel: ""
     property int wifiIdx: 0; property string wifiPassSsid: ""; property int btIdx: 0
 
@@ -58,7 +58,7 @@ PanelWindow {
     Rectangle {
         id: box
         width: pop.fullW; height: pop.fullH
-        anchors { top: parent.top; topMargin: 6; horizontalCenter: parent.horizontalCenter }
+        anchors.centerIn: parent
         color: pop.activeTab === "ai" ? "transparent" : Theme.bg; radius: Theme.radius; border.width: 2; focus: true
         border.color: pop.activeTab === "power" ? Theme.red : Theme.blue
         MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons }
