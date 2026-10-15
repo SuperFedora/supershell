@@ -148,7 +148,7 @@ PanelWindow {
                                         Text { anchors.centerIn: parent; text: String(catRow.matchCount); color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.weight: Font.DemiBold }
                                     }
                                 }
-                                MouseArea { id: catM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: win.selectCategory(catRow.modelData.id) }
+                                MouseArea { id: catM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { Status.expandedSettingId = ""; win.selectCategory(catRow.modelData.id); } }
                             }
                         }
                         Item { Layout.fillHeight: true }
@@ -189,11 +189,16 @@ PanelWindow {
                             visible: win.searchQuery === "" && win.activePage === "system"; Layout.fillWidth: true; spacing: 20
                             RowLayout {
                                 spacing: 12
-                                Rectangle { implicitWidth: 58; implicitHeight: 42; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.blue; Text { anchors.centerIn: parent; text: "󰍹"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 8 } }
+                                Rectangle {
+                                    implicitWidth: 68; implicitHeight: 42; radius: 6; color: Theme.bgAlt; border.width: 2; border.color: sysMonM.containsMouse ? Theme.cyan : Theme.blue; clip: true
+                                    Image { id: sysWpImg; anchors { fill: parent; margins: 2 } source: Status.currentWallpaper ? ("file://" + Status.currentWallpaper) : ""; fillMode: Image.PreserveAspectCrop; asynchronous: true; cache: false }
+                                    Text { visible: sysWpImg.status !== Image.Ready; anchors.centerIn: parent; text: "󰍹"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 8 }
+                                    MouseArea { id: sysMonM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("personalization", "ui-saver") }
+                                }
                                 ColumnLayout {
                                     spacing: 1
-                                    Text { text: win.hostShort; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize + 1; font.weight: Font.DemiBold }
-                                    Text { text: Status.gpuArch + "  ·  " + Theme.themeName; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 }
+                                    Text { text: win.hostShort; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize + 1; font.weight: Font.DemiBold; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("system", "sys-storage") } }
+                                    Text { text: Status.gpuArch + "  ·  " + Theme.themeName + " 󰅂"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("personalization", "ui-saver") } }
                                 }
                             }
                             Item { Layout.fillWidth: true }
@@ -202,12 +207,12 @@ PanelWindow {
                                 RowLayout {
                                     spacing: 8
                                     Text { text: Status.wifiEnabled ? "󰤨" : "󰈀"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 3 }
-                                    ColumnLayout { spacing: 0; Text { text: Status.ssid || Status.netIface; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } Text { text: "Connected"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } }
+                                    ColumnLayout { spacing: 0; Text { text: (Status.ssid || Status.netIface) + " 󰅂"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("network", "net-wifi") } } Text { text: "Connected"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } }
                                 }
                                 RowLayout {
                                     spacing: 8
                                     Text { text: "󰓅"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 3 }
-                                    ColumnLayout { spacing: 0; Text { text: "Power mode"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } Text { text: Status.workstationMode; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } }
+                                    ColumnLayout { spacing: 0; Text { text: "Power mode 󰅂"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("power", "pwr-mode") } } Text { text: Status.workstationMode; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } }
                                 }
                             }
                         }

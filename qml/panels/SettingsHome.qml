@@ -4,7 +4,7 @@ import Quickshell
 import Quickshell.Bluetooth
 import ".."
 
-// Windows 11 (WinUI 3 / Fluent) Settings Home Dashboard: Hero Device Banner + 2x2 Interactive Cards Grid.
+// Windows 11 (WinUI 3 / Fluent) Settings Home Dashboard: Live Wallpaper Monitor Banner + 2x2 Interactive Cards Grid.
 Item {
     id: home
     property string hostShort: "workstation"
@@ -14,7 +14,8 @@ Item {
     readonly property var btAdapter: Bluetooth.defaultAdapter
     readonly property bool btEnabled: btAdapter !== null && btAdapter.enabled
     readonly property var btList: btAdapter ? Bluetooth.devices.values.slice(0, 3) : []
-    readonly property string wpPath: "file://" + Quickshell.env("HOME") + "/.config/superfedora/current-wallpaper.png"
+    readonly property string wpPath: Status.currentWallpaper ? ("file://" + Status.currentWallpaper) : ""
+    readonly property string wpName: Status.currentWallpaper ? Status.currentWallpaper.split("/").pop() : "Default wallpaper"
 
     readonly property var themeSwatches: [
         { id: "01-crimson", l: "Crimson", hex: "#f7768e" }, { id: "02-scarlet", l: "Scarlet", hex: "#ff5a5f" },
@@ -43,32 +44,37 @@ Item {
         ColumnLayout {
             id: mainCol; width: hFlick.width; spacing: 14
 
-            // ================ TOP HERO DEVICE BANNER (Windows 11 Home Header) ================
+            // ================ TOP HERO DEVICE BANNER (Windows 11 Home Header with Live Wallpaper Monitor) ================
             Rectangle {
-                Layout.fillWidth: true; implicitHeight: 108; radius: 8; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
+                Layout.fillWidth: true; implicitHeight: 112; radius: 8; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
                 RowLayout {
                     anchors { fill: parent; leftMargin: 18; rightMargin: 18; topMargin: 12; bottomMargin: 12 } spacing: 18
                     ColumnLayout {
                         spacing: 3
                         Rectangle {
-                            implicitWidth: 122; implicitHeight: 72; radius: 6; color: Theme.bg; border.width: 2; border.color: Theme.blue; clip: true
+                            implicitWidth: 132; implicitHeight: 76; radius: 6; color: Theme.bg; border.width: 2; border.color: wpMonM.containsMouse ? Theme.cyan : Theme.blue; clip: true
                             Image { id: wpImg; anchors { fill: parent; margins: 2 } source: home.wpPath; fillMode: Image.PreserveAspectCrop; asynchronous: true; cache: false }
                             Text { visible: wpImg.status !== Image.Ready; anchors.centerIn: parent; text: "󰍹"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 10 }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: home.selectCategory("personalization") }
+                            Rectangle {
+                                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 2 } height: 20; radius: 4
+                                color: Qt.rgba(0, 0, 0, wpMonM.containsMouse ? 0.78 : 0.52)
+                                Text { anchors.centerIn: parent; text: wpMonM.containsMouse ? "󰸉 Change wallpaper" : ("󰸉 " + home.wpName); color: "#ffffff"; font.family: Theme.font; font.pixelSize: Theme.fontSize - 4; font.weight: Font.DemiBold; elide: Text.ElideRight; width: parent.width - 8; horizontalAlignment: Text.AlignHCenter }
+                            }
+                            MouseArea { id: wpMonM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("personalization", "ui-saver") }
                         }
-                        Rectangle { Layout.alignment: Qt.AlignHCenter; width: 38; height: 4; radius: 2; color: Theme.border }
+                        Rectangle { Layout.alignment: Qt.AlignHCenter; width: 42; height: 4; radius: 2; color: wpMonM.containsMouse ? Theme.blue : Theme.border }
                     }
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 3
-                        Text { text: home.hostShort; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize + 5; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
-                        Text { text: "Fedora Linux  ·  " + Status.gpuArch + "  ·  " + Theme.themeName; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; elide: Text.ElideRight; Layout.fillWidth: true }
-                        Text { text: "System specifications & display 󰅂"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: home.selectCategory("system") } }
+                        Text { text: home.hostShort; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize + 5; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("system", "sys-storage") } }
+                        Text { text: "Fedora Linux  ·  " + Status.gpuArch + "  ·  " + Theme.themeName; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; elide: Text.ElideRight; Layout.fillWidth: true; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("system", "sys-gpu") } }
+                        Text { text: "System specifications & display 󰅂"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("system", "disp-scale") } }
                     }
                     Repeater {
                         model: [
-                            { cat: "network", icon: Status.wifiEnabled ? "󰤨" : "󰈀", title: Status.ssid || Status.netIface || "Network", sub: "Connected · " + Status.netIpv4.split("/")[0] },
-                            { cat: "power",   icon: "󰓅", title: "Power mode", sub: Status.workstationMode.toUpperCase() + " · CPU " + Status.cpu + "%" },
-                            { cat: "apps",    icon: "󰚰", title: "SuperForge", sub: Status.forgeBusy ? ("Forging " + Status.forgeTarget) : "Ready · Btrfs active" }
+                            { cat: "network", item: "net-wifi",     icon: Status.wifiEnabled ? "󰤨" : "󰈀", title: Status.ssid || Status.netIface || "Network", sub: "Connected · " + Status.netIpv4.split("/")[0] },
+                            { cat: "power",   item: "pwr-mode",     icon: "󰓅", title: "Power mode", sub: Status.workstationMode.toUpperCase() + " · CPU " + Status.cpu + "%" },
+                            { cat: "ai",      item: "ai-cluster",   icon: "󰚩", title: Status.aiAgentLabel || "AI Cluster", sub: Status.ollamaModel + " · " + Status.llmServers.length + " nodes" }
                         ]
                         Rectangle {
                             id: hPill; required property var modelData; implicitWidth: 168; implicitHeight: 62; radius: 6; color: hpM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: hpM.containsMouse ? Theme.blue : Theme.border
@@ -77,7 +83,7 @@ Item {
                                 Text { text: hPill.modelData.icon; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 4 }
                                 ColumnLayout { Layout.fillWidth: true; spacing: 1; Text { text: hPill.modelData.title; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true } Text { text: hPill.modelData.sub; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; elide: Text.ElideRight; Layout.fillWidth: true } }
                             }
-                            MouseArea { id: hpM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: home.selectCategory(hPill.modelData.cat) }
+                            MouseArea { id: hpM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem(hPill.modelData.cat, hPill.modelData.item) }
                         }
                     }
                 }
@@ -92,11 +98,11 @@ Item {
                     Layout.fillWidth: true; Layout.preferredWidth: 100; Layout.fillHeight: true; implicitHeight: recCol.implicitHeight + 28; radius: 8; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
                     ColumnLayout {
                         id: recCol; anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 } spacing: 10
-                        RowLayout { Layout.fillWidth: true; spacing: 10; Text { text: "󰒓"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 3 } ColumnLayout { Layout.fillWidth: true; spacing: 1; Text { text: "Recommended settings"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize + 1; font.weight: Font.DemiBold } Text { text: "Recent and frequently used sound, display, and focus controls"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; elide: Text.ElideRight; Layout.fillWidth: true } } }
+                        RowLayout { Layout.fillWidth: true; spacing: 10; Text { text: "󰒓"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 3 } ColumnLayout { Layout.fillWidth: true; spacing: 1; Text { text: "Recommended settings 󰅂"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize + 1; font.weight: Font.DemiBold; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("system", "disp-bright") } } Text { text: "Click any setting label to expand its full controls"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; elide: Text.ElideRight; Layout.fillWidth: true } } }
                         RowLayout {
                             Layout.fillWidth: true; spacing: 10
                             Rectangle { implicitWidth: 30; implicitHeight: 28; radius: 5; color: vMuteM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: Status.spkMuted ? "󰝟" : "󰕾"; color: Status.spkMuted ? Theme.red : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize } MouseArea { id: vMuteM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.toggleSpeakerMute() } }
-                            Text { text: "Volume"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; Layout.preferredWidth: 78 }
+                            Text { text: "Volume 󰅂"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; Layout.preferredWidth: 82; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("system", "snd-spk") } }
                             Item {
                                 Layout.fillWidth: true; implicitHeight: 22
                                 Rectangle { anchors.verticalCenter: parent.verticalCenter; width: parent.width; height: 4; radius: 2; color: Theme.bg; border.width: 1; border.color: Theme.border }
@@ -108,8 +114,8 @@ Item {
                         }
                         RowLayout {
                             Layout.fillWidth: true; spacing: 10
-                            Rectangle { implicitWidth: 30; implicitHeight: 28; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "󰃠"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize } }
-                            Text { text: "Brightness"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; Layout.preferredWidth: 78 }
+                            Rectangle { implicitWidth: 30; implicitHeight: 28; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "󰃠"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("system", "disp-bright") } }
+                            Text { text: "Brightness 󰅂"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; Layout.preferredWidth: 82; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("system", "disp-bright") } }
                             Item {
                                 Layout.fillWidth: true; implicitHeight: 22
                                 Rectangle { anchors.verticalCenter: parent.verticalCenter; width: parent.width; height: 4; radius: 2; color: Theme.bg; border.width: 1; border.color: Theme.border }
@@ -133,8 +139,8 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
                             Repeater {
-                                model: [ { l: "Display & sound", cat: "system" }, { l: "Taskbar & dock", cat: "windowing" }, { l: "Accessibility", cat: "accessibility" } ]
-                                Rectangle { id: navChip; required property var modelData; Layout.fillWidth: true; implicitHeight: 28; radius: 5; color: ncM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: navChip.modelData.l + " 󰅂"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { id: ncM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: home.selectCategory(navChip.modelData.cat) } }
+                                model: [ { l: "Audio devices", cat: "system", item: "snd-spk" }, { l: "Taskbar & dock", cat: "windowing", item: "wm-dock" }, { l: "Accessibility", cat: "accessibility", item: "acc-fontsize" } ]
+                                Rectangle { id: navChip; required property var modelData; Layout.fillWidth: true; implicitHeight: 28; radius: 5; color: ncM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: navChip.modelData.l + " 󰅂"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { id: ncM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem(navChip.modelData.cat, navChip.modelData.item) } }
                             }
                         }
                     }
@@ -148,8 +154,8 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true; spacing: 10
                             Text { text: "󰸉"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 3 }
-                            ColumnLayout { Layout.fillWidth: true; spacing: 1; Text { text: "Personalize your device"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize + 1; font.weight: Font.DemiBold } Text { text: "Theme: " + Theme.themeName + "  ·  " + (Theme.mode === "light" ? "Light mode" : "Dark mode") + "  ·  " + (Theme.corners === "rounded" ? "Rounded" : "Square"); color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; elide: Text.ElideRight; Layout.fillWidth: true } }
-                            Rectangle { implicitWidth: 112; implicitHeight: 28; radius: 5; color: nwM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "󰸉 Next wallpaper"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { id: nwM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: home.executeCommand("~/.config/hypr/scripts/wallpaper.sh next", false) } }
+                            ColumnLayout { Layout.fillWidth: true; spacing: 1; Text { text: "Personalize your device 󰅂"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize + 1; font.weight: Font.DemiBold; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("personalization", "ui-saver") } } Text { text: "Theme: " + Theme.themeName + "  ·  " + (Theme.mode === "light" ? "Light mode" : "Dark mode") + "  ·  " + (Theme.corners === "rounded" ? "Rounded" : "Square"); color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; elide: Text.ElideRight; Layout.fillWidth: true } }
+                            Rectangle { implicitWidth: 118; implicitHeight: 28; radius: 5; color: nwM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "󰸉 Wallpaper picker"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { id: nwM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("personalization", "ui-saver") } }
                         }
                         GridLayout {
                             Layout.fillWidth: true; columns: 8; columnSpacing: 6; rowSpacing: 6
@@ -165,7 +171,7 @@ Item {
                                 Rectangle { id: pmBtn; required property var modelData; Layout.fillWidth: true; implicitHeight: 30; radius: 5; color: modelData.on ? Theme.blue : (pmM.containsMouse ? Theme.bgHover : Theme.bg); border.width: 1; border.color: modelData.on ? Theme.blue : Theme.border; Text { anchors.centerIn: parent; text: pmBtn.modelData.l; color: pmBtn.modelData.on ? Theme.bg : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: pmBtn.modelData.on ? Font.DemiBold : Font.Normal } MouseArea { id: pmM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: home.executeCommand(pmBtn.modelData.cmd, false) } }
                             }
                         }
-                        Rectangle { Layout.fillWidth: true; implicitHeight: 28; radius: 5; color: pMoreM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Browse all themes, RGB lighting & screensavers 󰅂"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { id: pMoreM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: home.selectCategory("personalization") } }
+                        Rectangle { Layout.fillWidth: true; implicitHeight: 28; radius: 5; color: pMoreM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Browse wallpapers, themes, RGB lighting & screensavers 󰅂"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { id: pMoreM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("personalization", "ui-saver") } }
                     }
                 }
 
@@ -177,10 +183,10 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true; spacing: 10
                             Text { text: "󰂯"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 3 }
-                            ColumnLayout { Layout.fillWidth: true; spacing: 1; Text { text: "Bluetooth devices"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize + 1; font.weight: Font.DemiBold } Text { text: home.btEnabled ? ("Bluetooth is on  ·  " + home.btList.length + " recent devices") : "Bluetooth is turned off"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } }
+                            ColumnLayout { Layout.fillWidth: true; spacing: 1; Text { text: "Bluetooth devices 󰅂"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize + 1; font.weight: Font.DemiBold; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("devices", "dev-bt") } } Text { text: home.btEnabled ? ("Bluetooth is on  ·  " + home.btList.length + " recent devices") : "Bluetooth is turned off"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } }
                             RowLayout { spacing: 8; Text { text: home.btEnabled ? "On" : "Off"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } Rectangle { implicitWidth: 42; implicitHeight: 22; radius: 11; color: home.btEnabled ? Theme.blue : Theme.bg; border.width: 1; border.color: home.btEnabled ? Theme.blue : Theme.muted; Rectangle { width: 14; height: 14; radius: 7; anchors.verticalCenter: parent.verticalCenter; x: home.btEnabled ? 23 : 4; color: home.btEnabled ? Theme.bg : Theme.fgDim } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: home.executeCommand(home.btEnabled ? "bluetoothctl power off" : "rfkill unblock bluetooth; bluetoothctl power on", false) } } }
                         }
-                        Rectangle { visible: home.btList.length === 0; Layout.fillWidth: true; implicitHeight: 54; radius: 6; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "No paired Bluetooth accessories found. Click Scan nearby below."; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } }
+                        Rectangle { visible: home.btList.length === 0; Layout.fillWidth: true; implicitHeight: 54; radius: 6; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "No paired Bluetooth accessories found. Click to manage devices."; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("devices", "dev-bt") } }
                         Repeater {
                             model: home.btList
                             Rectangle {
@@ -191,7 +197,7 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
                             Rectangle { Layout.fillWidth: true; implicitHeight: 28; radius: 5; color: btScM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Scan nearby"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { id: btScM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: home.executeCommand("bluetoothctl --timeout 10 scan on >/dev/null 2>&1 &", false) } }
-                            Rectangle { Layout.fillWidth: true; implicitHeight: 28; radius: 5; color: btAllM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Bluetooth & devices 󰅂"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { id: btAllM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: home.selectCategory("devices") } }
+                            Rectangle { Layout.fillWidth: true; implicitHeight: 28; radius: 5; color: btAllM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Bluetooth & devices 󰅂"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { id: btAllM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("devices", "dev-bt") } }
                         }
                     }
                 }
@@ -201,10 +207,10 @@ Item {
                     Layout.fillWidth: true; Layout.preferredWidth: 100; Layout.fillHeight: true; implicitHeight: stgCol.implicitHeight + 28; radius: 8; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
                     ColumnLayout {
                         id: stgCol; anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 } spacing: 10
-                        RowLayout { Layout.fillWidth: true; spacing: 10; Text { text: "󰋊"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 3 } ColumnLayout { Layout.fillWidth: true; spacing: 1; Text { text: "Storage, power & recovery"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize + 1; font.weight: Font.DemiBold } Text { text: "Root (/): " + Status.diskRoot + "  ·  Home: " + Status.diskHome + "  ·  RAM " + Status.mem + "%"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; elide: Text.ElideRight; Layout.fillWidth: true } } }
+                        RowLayout { Layout.fillWidth: true; spacing: 10; Text { text: "󰋊"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 3 } ColumnLayout { Layout.fillWidth: true; spacing: 1; Text { text: "Storage, power & recovery 󰅂"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize + 1; font.weight: Font.DemiBold; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("system", "sys-storage") } } Text { text: "Root (/): " + Status.diskRoot + "  ·  Home: " + Status.diskHome + "  ·  RAM " + Status.mem + "%"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; elide: Text.ElideRight; Layout.fillWidth: true } } }
                         ColumnLayout {
                             Layout.fillWidth: true; spacing: 4
-                            Rectangle { Layout.fillWidth: true; height: 8; radius: 4; color: Theme.bg; border.width: 1; border.color: Theme.border; Rectangle { width: Math.round(parent.width * home.diskPct(Status.diskRoot)); height: parent.height; radius: 4; color: Theme.blue } }
+                            Rectangle { Layout.fillWidth: true; height: 8; radius: 4; color: Theme.bg; border.width: 1; border.color: Theme.border; Rectangle { width: Math.round(parent.width * home.diskPct(Status.diskRoot)); height: parent.height; radius: 4; color: Theme.blue } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("system", "sys-storage") } }
                             RowLayout { Layout.fillWidth: true; Text { text: "Btrfs Root & Home"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; Layout.fillWidth: true } Text { text: "CPU " + Status.cpu + "%  ·  Temp " + Status.tempC + "°C"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } }
                         }
                         RowLayout {
@@ -217,7 +223,7 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
                             Rectangle { Layout.fillWidth: true; implicitHeight: 28; radius: 5; color: snapM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "󰁯 Create restore point"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { id: snapM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: home.executeCommand("(~/.local/bin/sf snapshot create 'Settings Home Checkpoint' || pkexec snapper -c root create -d 'Settings Home Checkpoint') && (~/.local/bin/supernotify --banner checkpoint >/dev/null 2>&1 || true)", false) } }
-                            Rectangle { Layout.fillWidth: true; implicitHeight: 28; radius: 5; color: pwrM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Power & battery 󰅂"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { id: pwrM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: home.selectCategory("power") } }
+                            Rectangle { Layout.fillWidth: true; implicitHeight: 28; radius: 5; color: pwrM.containsMouse ? Theme.bgHover : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Power & battery 󰅂"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { id: pwrM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsItem("power", "pwr-mode") } }
                         }
                     }
                 }

@@ -145,23 +145,22 @@ pub fn print_probe() {
     } else {
         "On-Demand (Socket)"
     };
-    println!(
-        "GPU|{}|{}|{}|{}",
-        gpu_arch,
-        va_drv,
-        if ff_ok { "Full FFmpeg + VA-API" } else { "ffmpeg-free" },
-        if dmabuf_ok { "Zero-Copy DMABUF Active" } else { "Standard" }
-    );
+    println!("GPU|{}|{}|{}|{}", gpu_arch, va_drv, if ff_ok { "Full FFmpeg + VA-API" } else { "ffmpeg-free" }, if dmabuf_ok { "Zero-Copy DMABUF Active" } else { "Standard" });
     println!("MODE|{}|{}", ws_mode, pk_idle);
-    println!(
-        "A11Y|{}|{}|{}|{}|{}|{}",
-        ui_scale,
-        if anim_off { "0" } else { "1" },
-        if orca_on { "1" } else { "0" },
-        if night_on { "1" } else { "0" },
-        if tpad_on { "1" } else { "0" },
-        if mono_on { "1" } else { "0" }
-    );
+    println!("A11Y|{}|{}|{}|{}|{}|{}", ui_scale, if anim_off { "0" } else { "1" }, if orca_on { "1" } else { "0" }, if night_on { "1" } else { "0" }, if tpad_on { "1" } else { "0" }, if mono_on { "1" } else { "0" });
+    let (mut dt, mut db, mut df, mut de, mut dm) = ("kitty".to_string(), "firefox".to_string(), "yazi".to_string(), "nvim".to_string(), "btop".to_string());
+    if let Ok(dtxt) = fs::read_to_string(cfg.join("defaults.env")) {
+        for l in dtxt.lines() {
+            if let Some((k, v)) = l.split_once('=') {
+                let val = v.trim().trim_matches('"').trim_matches('\'').to_string();
+                match k.trim() {
+                    "DEFAULT_TERMINAL" => dt = val, "DEFAULT_BROWSER" => db = val, "DEFAULT_FILES" => df = val,
+                    "DEFAULT_EDITOR" => de = val,   "DEFAULT_MONITOR" => dm = val, _ => {}
+                }
+            }
+        }
+    }
+    println!("DEF|{}|{}|{}|{}|{}", dt, db, df, de, dm);
 }
 
 pub fn apply_setting(args: &[String]) -> i32 {
@@ -170,6 +169,11 @@ pub fn apply_setting(args: &[String]) -> i32 {
     let cfg = cfg_dir();
 
     match act {
+        "default" | "default-app" => {
+            let sub = args.get(2).map(|s| s.as_str()).unwrap_or("");
+            let _ = Command::new("xdg-terminal-exec").args(["--set", val, sub]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+            0
+        }
         "mode" | "profile" => {
             let next = if val.is_empty() { "cycle" } else { val };
             let _ = Command::new("superfedora").args(["mode", next]).stdout(Stdio::null()).stderr(Stdio::null()).status();
@@ -182,21 +186,17 @@ pub fn apply_setting(args: &[String]) -> i32 {
             0
         }
         "theme" | "palette" => {
-            let sub = if val.is_empty() { "toggle" } else { val };
-            let _ = Command::new("supertheme").arg(sub).stdout(Stdio::null()).stderr(Stdio::null()).status();
+            let _ = Command::new("supertheme").arg(if val.is_empty() { "toggle" } else { val }).stdout(Stdio::null()).stderr(Stdio::null()).status();
             0
         }
         "corners" => {
-            let sub = if val.is_empty() { "toggle" } else { val };
-            let _ = Command::new("supertheme").args(["corners", sub]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+            let _ = Command::new("supertheme").args(["corners", if val.is_empty() { "toggle" } else { val }]).stdout(Stdio::null()).stderr(Stdio::null()).status();
             0
         }
         "ui-scale" => {
             let sz: u32 = match val {
-                "compact" | "small" | "13" => 13,
-                "default" | "normal" | "14" => 14,
-                "large" | "16" | "17" => 16,
-                "xlarge" | "xl" | "18" | "20" => 18,
+                "compact" | "small" | "13" => 13, "default" | "normal" | "14" => 14,
+                "large" | "16" | "17" => 16,      "xlarge" | "xl" | "18" | "20" => 18,
                 _ => val.parse::<u32>().unwrap_or(14).clamp(12, 22),
             };
             let _ = fs::write(cfg.join("ui-scale"), format!("{sz}\n"));
@@ -215,9 +215,9 @@ pub fn apply_setting(args: &[String]) -> i32 {
         "nightlight" => {
             let running = pgrep_exact("wlsunset");
             let _ = Command::new("pkill").args(["-x", "wlsunset"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-            if val == "on" || (val == "toggle" && !running) || val == "4000" || val == "3400" {
-                let temp = if val == "3400" { "3400" } else { "4000" };
-                let _ = Command::new("sh").args(["-c", &format!("nohup wlsunset -T {temp} -t 3000 >/dev/null 2>&1 &")]).status();
+            if val == "on" || (val == "toggle" && !running) || matches!(val, "4500" | "4000" | "3400" | "2800") {
+                let temp = if matches!(val, "4500" | "4000" | "3400" | "2800") { val } else { "4000" };
+                let _ = Command::new("sh").args(["-c", &format!("nohup wlsunset -T {temp} -t 2600 >/dev/null 2>&1 &")]).status();
             }
             let _ = Command::new("qs").args(["ipc", "call", "status", "refresh"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
             0
@@ -238,9 +238,6 @@ pub fn apply_setting(args: &[String]) -> i32 {
             let _ = Command::new("qs").args(["ipc", "call", "status", "refresh"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
             0
         }
-        _ => {
-            print_probe();
-            0
-        }
+        _ => { print_probe(); 0 }
     }
 }

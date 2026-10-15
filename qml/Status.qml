@@ -19,7 +19,8 @@ Singleton {
     property string aiReply: "Ready. Type a prompt above and press Enter for an instant answer, or click [ OPEN TERMINAL ] for an interactive session."
     property bool aiBusy: false; property string _pendingAiPrompt: ""
     property bool pocketOpen: false; property bool centerToolsOpen: false; property bool recorderOpen: false; property bool superDeckOpen: false; property string superDeckSection: "ai"; property bool superDeckPowerHighlight: false
-    property bool screenRecording: false; property bool screenPaused: false; property bool settingsOpen: false; property string settingsPage: "home"
+    property bool screenRecording: false; property bool screenPaused: false; property bool settingsOpen: false; property string settingsPage: "home"; property string expandedSettingId: ""
+    property string currentWallpaper: ""; property var wallpaperList: []
     property bool clock24h: true; property bool clockSeconds: false; property string localTz: "Local"; property bool autoTz: true
     property var worldClocks: []; property bool dnd: false; property bool sessionLocked: false
     property int notifUnread: 0; property int centerToggleSeq: 0; property var notifHistory: []; property var notifAction: null
@@ -29,7 +30,7 @@ Singleton {
     property string netIface: "wlan0"; property string netIpv4: "127.0.0.1"; property string netGateway: "None"; property string netDns: "127.0.0.53"; property string firewallState: "ACTIVE"; property string vpnState: "None"
     property string diskRoot: "0G / 0G"; property string diskHome: "0G / 0G"; property int uiScale: 14; property bool animEnabled: true; property bool orcaRunning: false; property bool nightLightRunning: false; property bool touchpadEnabled: true; property bool monoAudio: false
     property string gpuArch: "GPU"; property string gpuDriver: "VA-API"; property string gpuCodecs: "Full FFmpeg + VA-API"; property string gpuDmabuf: "Zero-Copy DMABUF Active"; property string workstationMode: "balanced"; property string pkgkitMode: "On-Demand (30s ShutdownTimeout)"
-    property var _lastCpu: null; property var _lastNet: null; property var _lastGpu: null
+    property string defTerminal: "kitty"; property string defBrowser: "firefox"; property string defFiles: "yazi"; property string defEditor: "nvim"; property string defMonitor: "btop"; property var _lastCpu: null; property var _lastNet: null; property var _lastGpu: null
 
     FileView { id: procStat; path: "/proc/stat" }
     FileView { id: procMem; path: "/proc/meminfo" }
@@ -78,13 +79,15 @@ Singleton {
             "(fastfetch -s OS:Host:Kernel:Uptime:WM:CPU:GPU:Memory:Disk:LocalIP --logo none --pipe true 2>/dev/null || printf 'OS: Fedora Linux\\nKernel: %s\\n' \"$(uname -sr)\") | awk -F': ' 'NF>=2{print \"FF|\"$1\"|\"substr($0,index($0,\": \")+2)}'; " +
             "ps -eo pid,pcpu,pmem,comm --sort=-pcpu --no-headers 2>/dev/null | head -n 7 | awk '{c=$4; for(i=5;i<=NF;i++) c=c\" \"$i; printf \"PRC|%s|%s|%s|%s\\n\",$1,$2,$3,c}'; " +
             "echo \"RGB|$(cat ~/.config/superfedora/rgb-devices 2>/dev/null || echo 0)|$(cat ~/.config/superfedora/rgb-color 2>/dev/null || echo 7aa2f7)\"; " +
+            "wp=$(cat ~/.config/hypr/.current-wallpaper 2>/dev/null || awk -F'= ' '/^[[:space:]]*path[[:space:]]*=/{print $2; exit}' ~/.config/hypr/hyprpaper.conf 2>/dev/null); wp=${wp/#\\~/$HOME}; [ -f \"$wp\" ] || wp=$(ls ~/Pictures/Wallpapers/dark/*.png ~/Pictures/Wallpapers/*.png 2>/dev/null | head -n1); echo \"WPC|$wp\"; for w in ~/Pictures/Wallpapers/dark/*.png ~/Pictures/Wallpapers/light/*.png ~/Pictures/Wallpapers/*.png ~/Pictures/Wallpapers/*.jpg; do [ -f \"$w\" ] && [ \"$(basename \"$w\")\" != \"avatar.jpg\" ] && echo \"WPL|$w\"; done | awk '!seen[$0]++' | head -n 24; " +
             "if pgrep -x wf-recorder >/dev/null || pgrep -f '^gpu-screen-recorder' >/dev/null; then [ -f ~/.config/superfedora/recording-paused ] && echo 'REC|1|1' || echo 'REC|1|0'; else rm -f ~/.config/superfedora/recording-paused; echo 'REC|0|0'; fi; " +
             "if [ -d /sys/class/power_supply/BAT0 ]; then bs=$(cat /sys/class/power_supply/BAT0/charge_control_start_threshold /sys/class/power_supply/BAT0/charge_start_threshold 2>/dev/null | head -n1); be=$(cat /sys/class/power_supply/BAT0/charge_control_end_threshold /sys/class/power_supply/BAT0/charge_stop_threshold 2>/dev/null | head -n1); echo \"BAT0|1|${bs:-0}|${be:-100}\"; fi; " +
             "(~/.local/bin/supersettings probe 2>/dev/null || ~/.local/bin/sf settings-probe 2>/dev/null || true); " +
+            "(~/.local/bin/xdg-terminal-exec --probe 2>/dev/null || true); " +
             "for f in ~/.local/share/applications/*.desktop; do [ -f \"$f\" ] || continue; id=$(basename \"$f\" .desktop); nm=$(grep -m1 '^Name=' \"$f\" | cut -d= -f2-); ic=$(grep -m1 '^Icon=' \"$f\" | cut -d= -f2-); ex=$(grep -m1 '^Exec=' \"$f\" | cut -d= -f2- | sed 's/ %[a-zA-Z]//g'); wm=$(grep -m1 '^StartupWMClass=' \"$f\" | cut -d= -f2-); nd=$(grep -m1 '^NoDisplay=' \"$f\" | cut -d= -f2-); [ \"$nd\" = \"true\" ] || printf 'APP|%s|%s|%s|%s|%s\\n' \"$id\" \"$nm\" \"$ic\" \"$ex\" \"$wm\"; done"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const lines = text.trim().split("\n"), type = lines[0] || "none", byName = {}, list = [], saved = [], sinks = [], sources = [], stApps = [], ff = [], procs = [], lApps = [], lMap = {}, harnesses = [], servers = [];
+                const lines = text.trim().split("\n"), type = lines[0] || "none", byName = {}, list = [], saved = [], sinks = [], sources = [], stApps = [], ff = [], procs = [], lApps = [], lMap = {}, harnesses = [], servers = [], wps = [];
                 let activeSsid = "", activeSig = 0;
                 for (let i = 1; i < lines.length; i++) {
                     if (lines[i].startsWith("WFR|")) { root.wifiEnabled = (lines[i].split("|")[1] || "enabled").trim() !== "disabled"; continue; }
@@ -102,6 +105,8 @@ Singleton {
                     if (lines[i].startsWith("FF|")) { const fp = lines[i].split("|"); if (fp.length >= 3) ff.push({ k: fp[1], v: fp.slice(2).join("|") }); continue; }
                     if (lines[i].startsWith("PRC|")) { const pp = lines[i].split("|"); if (pp.length >= 5) procs.push({ pid: pp[1], cpu: pp[2], mem: pp[3], cmd: pp[4] }); continue; }
                     if (lines[i].startsWith("RGB|")) { const rp = lines[i].split("|"); root.rgbCount = Number(rp[1] || 0); root.rgbSupported = root.rgbCount > 0; root.rgbHex = (rp[2] || "7aa2f7").replace(/^#/, ""); continue; }
+                    if (lines[i].startsWith("WPC|")) { root.currentWallpaper = (lines[i].split("|")[1] || "").trim(); continue; }
+                    if (lines[i].startsWith("WPL|")) { const w = (lines[i].split("|")[1] || "").trim(); if (w) wps.push(w); continue; }
                     if (lines[i].startsWith("REC|")) { const rc = lines[i].split("|"), rec = (rc[1] || "0").trim() === "1"; if (root.screenRecording && !rec) root.recorderOpen = false; root.screenRecording = rec; root.screenPaused = (rc[2] || "0").trim() === "1"; if (rec) root.recorderOpen = true; continue; }
                     if (lines[i].startsWith("BAT0|")) { const bp = lines[i].split("|"); root.bat0Present = true; root.bat0Threshold = "Start " + (bp[2] || "0") + "% / Stop " + (bp[3] || "100") + "%"; continue; }
                     if (lines[i].startsWith("USR|")) { const up = lines[i].split("|"); root.userAccount = up[1] || "user@fedora"; root.userUid = up[2] || "UID 1000"; root.userShell = up[3] || "/bin/bash"; root.userGroups = up[4] || "wheel"; root.sshStatus = up[5] || "SSH"; root.fprintStatus = up[6] || "PAM"; continue; }
@@ -111,6 +116,7 @@ Singleton {
                     if (lines[i].startsWith("GPU|")) { const gp = lines[i].split("|"); root.gpuArch = gp[1] || "GPU"; root.gpuDriver = gp[2] || "VA-API"; root.gpuCodecs = gp[3] || "FFmpeg"; root.gpuDmabuf = gp[4] || "Standard"; continue; }
                     if (lines[i].startsWith("MODE|")) { const mp = lines[i].split("|"); root.workstationMode = (mp[1] || "balanced").trim(); root.pkgkitMode = mp[2] || "On-Demand"; continue; }
                     if (lines[i].startsWith("A11Y|")) { const ay = lines[i].split("|"); root.uiScale = Number(ay[1] || 14); root.animEnabled = ay[2] !== "0"; root.orcaRunning = ay[3] === "1"; root.nightLightRunning = ay[4] === "1"; root.touchpadEnabled = ay[5] !== "0"; root.monoAudio = ay[6] === "1"; continue; }
+                    if (lines[i].startsWith("DEF|")) { const df = lines[i].split("|"); root.defTerminal = df[1] || "kitty"; root.defBrowser = df[2] || "firefox"; root.defFiles = df[3] || "yazi"; root.defEditor = df[4] || "nvim"; root.defMonitor = df[5] || "btop"; continue; }
                     if (lines[i].startsWith("APP|")) { const ap = lines[i].split("|"); if (ap.length >= 5 && ap[1] && ap[2]) { const iconPath = ap[3].startsWith("/") ? ap[3] : (Quickshell.env("HOME") + "/.local/share/icons/hicolor/128x128/apps/" + ap[3] + ".png"), obj = { id: ap[1], name: ap[2], icon: iconPath, execCmd: ap[4], wmClass: ap[5] || ap[1], execute: function() { Quickshell.execDetached(["sh", "-c", ap[4]]); } }; lApps.push(obj); lMap[ap[1].toLowerCase()] = obj; if (ap[5]) lMap[ap[5].toLowerCase()] = obj; } continue; }
                     const parts = lines[i].split(":"); if (parts.length < 4) continue;
                     const act = parts[0] === "yes", sig = Number(parts[1] || 0), sec = (parts[2] || "").trim(), name = parts.slice(3).join(":").replace(/\\:/g, ":").replace(/\\\\/g, "\\").trim(), open = (!sec || sec === "--");
@@ -120,7 +126,7 @@ Singleton {
                     else if (list.length < 8 || act) { const item = { ssid: name, signal: sig, active: act, open: open, security: open ? "OPEN" : "WPA", saved: saved.indexOf(name) !== -1 }; byName[name] = item; list.push(item); }
                 }
                 list.sort((a, b) => (b.active - a.active) || (b.signal - a.signal));
-                root.savedWifiList = saved; root.audioSinks = sinks; root.audioSources = sources; root.startupApps = stApps; root.fastfetchList = ff; root.topProcs = procs; root.localApps = lApps; root.localAppsMap = lMap; root.aiHarnesses = harnesses; root.llmServers = servers;
+                root.savedWifiList = saved; root.audioSinks = sinks; root.audioSources = sources; root.startupApps = stApps; root.fastfetchList = ff; root.topProcs = procs; root.localApps = lApps; root.localAppsMap = lMap; root.aiHarnesses = harnesses; root.llmServers = servers; root.wallpaperList = wps;
                 root.wifiList = list.slice(0, 8); root.netType = (type === "wifi" || type === "ethernet") ? type : "none";
                 root.signal = type === "wifi" ? activeSig : 0; root.ssid = type === "wifi" ? activeSsid : "";
             }
@@ -157,6 +163,7 @@ Singleton {
     function dismissForgeBanner() { root.forgeRecent = false; root.forgeState = "idle"; Quickshell.execDetached(["sh", "-c", "printf '{\"active\":false,\"state\":\"idle\",\"target\":\"\",\"pct\":0,\"step\":\"Ready\",\"ts\":0}\\n' > ~/.config/superfedora/forge-live.json"]); }
     function removeForge(slug) { const s = String(slug || "").trim().replace(/['"]/g, ""); if (!s) return; root.playSfx("click"); Quickshell.execDetached(["sh", "-c", "~/.local/bin/superforge remove '" + s + "' || ~/.local/bin/sf forge remove '" + s + "'"]); }
     function setRgbColor(hex) { if (!root.rgbSupported) return; const h = String(hex || "7aa2f7").replace(/^#/, ""); root.rgbHex = h === "off" ? "000000" : h; root.playSfx("click"); Quickshell.execDetached(["sh", "-c", "~/.local/bin/supertheme rgb '" + h + "' || ~/.local/bin/sf theme rgb '" + h + "'"]); }
+    function setWallpaper(p) { const f = String(p || "").trim().replace(/'/g, ""); if (!f) return; root.currentWallpaper = f; root.playSfx("confirm"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/wallpaper.sh set '" + f + "' && qs ipc call status refresh"]); }
     function askQuickAi(prompt) { const q = String(prompt || "").trim(); if (!q || root.aiBusy) return; root._pendingAiPrompt = q; root.aiBusy = true; root.aiReply = "Querying " + root.aiAgent.toUpperCase() + "..."; root.playSfx("confirm"); aiAskProc.running = true; }
     function addStartupApp(cmd) { const c = String(cmd || "").trim().replace(/'/g, ""); if (!c) return; root.playSfx("confirm"); Quickshell.execDetached(["sh", "-c", "grep -Fqx 'exec-once = " + c + "' ~/.config/hypr/conf/autostart.conf 2>/dev/null || printf '\\nexec-once = %s\\n' '" + c + "' >> ~/.config/hypr/conf/autostart.conf; [ -f ~/Projects/superfedora/superfedora/dotfiles/.config/hypr/conf/autostart.conf ] && cp -f ~/.config/hypr/conf/autostart.conf ~/Projects/superfedora/superfedora/dotfiles/.config/hypr/conf/autostart.conf; qs ipc call status refresh"]); }
     function removeStartupApp(cmd) { const c = String(cmd || "").trim().replace(/'/g, ""); if (!c) return; root.playSfx("click"); Quickshell.execDetached(["sh", "-c", "awk -v t='exec-once = " + c + "' '$0 != t' ~/.config/hypr/conf/autostart.conf > ~/.config/hypr/conf/autostart.conf.tmp && mv ~/.config/hypr/conf/autostart.conf.tmp ~/.config/hypr/conf/autostart.conf; [ -f ~/Projects/superfedora/superfedora/dotfiles/.config/hypr/conf/autostart.conf ] && cp -f ~/.config/hypr/conf/autostart.conf ~/Projects/superfedora/superfedora/dotfiles/.config/hypr/conf/autostart.conf; qs ipc call status refresh"]); }
@@ -190,6 +197,7 @@ Singleton {
         if (s === "system" || s === "sys" || s === "display" || s === "displays" || s === "audio" || s === "sound" || s === "1" || s === "4" || s === "5") return "system";
         if (s === "devices" || s === "bluetooth" || s === "bt" || s === "printers" || s === "printer" || s === "input" || s === "keyboard" || s === "mouse" || s === "3") return "devices";
         if (s === "network" || s === "net" || s === "wifi" || s === "2") return "network";
+        if (s === "wallpaper" || s === "wallpapers" || s === "background") { root.expandedSettingId = "ui-saver"; return "personalization"; }
         if (s === "personalization" || s === "theme" || s === "appearance" || s === "6") return "personalization";
         if (s === "windowing" || s === "shell" || s === "multitasking" || s === "dock" || s === "bar" || s === "7") return "windowing";
         if (s === "notifications" || s === "notifs" || s === "banners" || s === "clock") return "notifications";
@@ -207,6 +215,7 @@ Singleton {
     onRecorderOpenChanged: if (root.recorderOpen) { root.superDeckOpen = false; root.settingsOpen = false; root.appGridOpen = false; }
     onSettingsOpenChanged: if (root.settingsOpen) { root.superDeckOpen = false; root.appGridOpen = false; root.recorderOpen = false; }
     function openSettings(page) { root.superDeckOpen = false; root.settingsPage = page ? root.normalizeSettingsPage(page) : "home"; root.settingsOpen = true; root.refresh(); root.playSfx("click"); }
+    function openSettingsItem(page, itemId) { root.expandedSettingId = String(itemId || ""); root.openSettings(page); }
     function toggleSettings(page) { if (!page) { root.superDeckOpen = false; if (!root.settingsOpen) root.settingsPage = "home"; root.settingsOpen = !root.settingsOpen; } else { const p = root.normalizeSettingsPage(page); if (root.settingsOpen && root.settingsPage === p) root.settingsOpen = false; else { root.superDeckOpen = false; root.settingsPage = p; root.settingsOpen = true; } } if (root.settingsOpen) root.refresh(); root.playSfx("click"); }
     function toggleSuperDeck(_sec) { root.settingsOpen = false; root.appGridOpen = false; root.recorderOpen = false; root.superDeckSection = "ai"; root.superDeckOpen = !root.superDeckOpen; root.refresh(); root.playSfx("click"); }
     function toggleIdle() { root.idleMode = root.idleMode === "poweroff" ? "lock" : (root.idleMode === "lock" ? "screensaver" : "poweroff"); root.idleEnabled = root.idleMode === "poweroff"; root.playSfx("toggle"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/toggle-idle.sh " + root.idleMode]); }

@@ -67,7 +67,7 @@ ColumnLayout {
                     RowLayout {
                         Layout.fillWidth: true
                         Text { text: "▸ BTOP // TOP PROCESSES"; color: Theme.cyan; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.bold: true; Layout.fillWidth: true }
-                        Rectangle { implicitWidth: 124; implicitHeight: 24; radius: Theme.radiusSm; color: btM2.containsMouse ? Theme.blue : Theme.bg; border.width: 1; border.color: Theme.cyan; Text { anchors.centerIn: parent; text: "[ 󰍛 OPEN BTOP ]"; color: btM2.containsMouse ? Theme.bg : Theme.cyan; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.bold: true } MouseArea { id: btM2; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: audioDeck.executeCommand("kitty --class floating-term -e btop", false) } }
+                        Rectangle { implicitWidth: 124; implicitHeight: 24; radius: Theme.radiusSm; color: btM2.containsMouse ? Theme.blue : Theme.bg; border.width: 1; border.color: Theme.cyan; Text { anchors.centerIn: parent; text: "[ 󰍛 OPEN MONITOR ]"; color: btM2.containsMouse ? Theme.bg : Theme.cyan; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.bold: true } MouseArea { id: btM2; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: audioDeck.executeCommand("xdg-terminal-exec --monitor", false) } }
                     }
                     Repeater {
                         model: Status.topProcs.slice(0, 6)
