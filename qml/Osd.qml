@@ -4,11 +4,12 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Pipewire
 
-// 16-Bit SNES On-Screen Display (OSD) for Volume, Mute & Brightness changes.
+// 16-Bit SNES Animated On-Screen Display (OSD) for Volume, Mute & Brightness changes.
 Scope {
     id: root
     property bool shown: false
     property string mode: "volume" // "volume" | "brightness"
+    property int pulsePhase: 0
 
     PwObjectTracker {
         objects: [Pipewire.defaultAudioSink]
@@ -30,12 +31,14 @@ Scope {
         if (!_armed) return;
         root.mode = kind || "volume";
         root.shown = true;
+        root.pulsePhase = 0;
         Status.playSfx("volume");
         hide.restart();
     }
 
     Timer { interval: 1500; running: true; onTriggered: root._armed = true }
     Timer { id: hide; interval: 1350; onTriggered: root.shown = false }
+    Timer { running: root.shown; interval: 90; repeat: true; onTriggered: root.pulsePhase = (root.pulsePhase + 1) % 16 }
 
     IpcHandler {
         target: "osd"
@@ -81,7 +84,7 @@ Scope {
                     RowLayout {
                         Layout.fillWidth: true
                         Text {
-                            text: root.mode === "brightness" ? "DISPLAY LUMEN" : (root.muted ? "AUDIO MUTED" : "MASTER AUDIO")
+                            text: root.mode === "brightness" ? "DISPLAY LUMEN // SYNTH" : (root.muted ? "AUDIO MUTED // SYNTH" : "MASTER AUDIO // SYNTH")
                             color: Theme.fgDim
                             font.family: Theme.font
                             font.pixelSize: 10
@@ -105,10 +108,10 @@ Scope {
                             Rectangle {
                                 required property int index
                                 Layout.fillWidth: true
-                                height: 8
+                                height: (lit && index === root.pulsePhase) ? 10 : 8
                                 radius: Theme.radiusSm > 0 ? 2 : 0
                                 readonly property bool lit: (index + 1) / 16.0 <= root.activeVal + 0.02
-                                color: !lit ? Theme.bgAlt : (root.mode === "brightness" ? Theme.yellow : (root.muted ? Theme.muted : (index >= 13 ? Theme.cyan : Theme.blue)))
+                                color: !lit ? Theme.bgAlt : (index === root.pulsePhase ? Theme.fg : (root.mode === "brightness" ? Theme.yellow : (root.muted ? Theme.muted : (index >= 13 ? Theme.cyan : Theme.blue))))
                             }
                         }
                     }

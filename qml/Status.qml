@@ -19,7 +19,7 @@ Singleton {
     property string aiReply: "Ready. Type a prompt above and press Enter for an instant answer, or click [ OPEN TERMINAL ] for an interactive session."
     property bool aiBusy: false; property string _pendingAiPrompt: ""
     property bool pocketOpen: false; property bool centerToolsOpen: false; property bool recorderOpen: false; property bool superDeckOpen: false; property string superDeckSection: "ai"; property bool superDeckPowerHighlight: false
-    property bool screenRecording: false; property bool screenPaused: false; property bool settingsOpen: false; property string settingsPage: "system"
+    property bool screenRecording: false; property bool screenPaused: false; property bool settingsOpen: false; property string settingsPage: "home"
     property bool clock24h: true; property bool clockSeconds: false; property string localTz: "Local"; property bool autoTz: true
     property var worldClocks: []; property bool dnd: false; property bool sessionLocked: false
     property int notifUnread: 0; property int centerToggleSeq: 0; property var notifHistory: []; property var notifAction: null
@@ -187,6 +187,7 @@ Singleton {
     }
     function normalizeSettingsPage(p) {
         const s = String(p || "").toLowerCase();
+        if (s === "home" || s === "overview" || s === "dashboard" || s === "main") return "home";
         if (s === "system" || s === "sys" || s === "display" || s === "displays" || s === "audio" || s === "sound" || s === "1" || s === "4" || s === "5") return "system";
         if (s === "devices" || s === "bluetooth" || s === "bt" || s === "printers" || s === "printer" || s === "input" || s === "keyboard" || s === "mouse" || s === "3") return "devices";
         if (s === "network" || s === "net" || s === "wifi" || s === "2") return "network";
@@ -197,7 +198,7 @@ Singleton {
         if (s === "accounts" || s === "users" || s === "user") return "accounts";
         if (s === "accessibility" || s === "a11y" || s === "acc") return "accessibility";
         if (s === "power" || s === "state" || s === "ai" || s === "updates" || s === "recovery" || s === "`" || s === "9" || s === "0") return "power";
-        return root.settingsPage || "system";
+        return root.settingsPage || "home";
     }
     property bool _quakeShown: false
     function syncQuakeAi(hdrH) { const want = root.superDeckOpen && root.normalizeDeckTab(root.superDeckSection) === "ai"; if (!want && !root._quakeShown) return; root._quakeShown = want; Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/quake-ai.sh " + (want ? ("show " + (hdrH || 40)) : "hide keep-deck") + " >/dev/null 2>&1"]); }
@@ -206,8 +207,8 @@ Singleton {
     onAppGridOpenChanged: if (root.appGridOpen) { root.superDeckOpen = false; root.settingsOpen = false; root.recorderOpen = false; }
     onRecorderOpenChanged: if (root.recorderOpen) { root.superDeckOpen = false; root.settingsOpen = false; root.appGridOpen = false; }
     onSettingsOpenChanged: if (root.settingsOpen) { root.superDeckOpen = false; root.appGridOpen = false; root.recorderOpen = false; }
-    function openSettings(page) { root.superDeckOpen = false; if (page) root.settingsPage = root.normalizeSettingsPage(page); root.settingsOpen = true; root.refresh(); root.playSfx("click"); }
-    function toggleSettings(page) { if (!page) { root.superDeckOpen = false; root.settingsOpen = !root.settingsOpen; } else { const p = root.normalizeSettingsPage(page); if (root.settingsOpen && root.settingsPage === p) root.settingsOpen = false; else { root.superDeckOpen = false; root.settingsPage = p; root.settingsOpen = true; } } if (root.settingsOpen) root.refresh(); root.playSfx("click"); }
+    function openSettings(page) { root.superDeckOpen = false; root.settingsPage = page ? root.normalizeSettingsPage(page) : "home"; root.settingsOpen = true; root.refresh(); root.playSfx("click"); }
+    function toggleSettings(page) { if (!page) { root.superDeckOpen = false; if (!root.settingsOpen) root.settingsPage = "home"; root.settingsOpen = !root.settingsOpen; } else { const p = root.normalizeSettingsPage(page); if (root.settingsOpen && root.settingsPage === p) root.settingsOpen = false; else { root.superDeckOpen = false; root.settingsPage = p; root.settingsOpen = true; } } if (root.settingsOpen) root.refresh(); root.playSfx("click"); }
     function toggleSuperDeck(sec) { const t = (!sec || sec === "last") ? root.normalizeDeckTab(root.superDeckSection) : root.normalizeDeckTab(sec), wasOpen = root.superDeckOpen, prev = root.superDeckSection; root.settingsOpen = false; root.appGridOpen = false; root.recorderOpen = false; root.superDeckPowerHighlight = (t === "power"); root.superDeckSection = t; root.superDeckOpen = true; if (wasOpen && prev === t) root.syncQuakeAi(); root.refresh(); root.playSfx("click"); }
     function toggleIdle() { root.idleMode = root.idleMode === "poweroff" ? "lock" : (root.idleMode === "lock" ? "screensaver" : "poweroff"); root.idleEnabled = root.idleMode === "poweroff"; root.playSfx("toggle"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/toggle-idle.sh " + root.idleMode]); }
     function startScreenRecord(region) { root.superDeckOpen = false; root.recorderOpen = !region; root.screenRecording = !region; root.screenPaused = false; root.playSfx("confirm"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/screenshot.sh " + (region ? "record-region" : "record")]); }

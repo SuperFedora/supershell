@@ -4,7 +4,7 @@ import Quickshell
 import Quickshell.Wayland
 import ".."
 
-// 16-Bit Workstation Center-Screen Banners:
+// 16-Bit Workstation Animated Center-Screen Banners:
 //   R E A D Y | W A R N I N G | U P D A T E   C O M P L E T E | C H E C K P O I N T   S A V E D
 PanelWindow {
     id: bannerWin
@@ -52,14 +52,14 @@ PanelWindow {
             : (norm === "update" || norm === "forge") ? "update"
             : (norm === "checkpoint" || norm === "snapshot" || norm === "btrfs") ? "checkpoint" : "ready";
         bannerWin.subtitle = String(sub || ""); bannerWin.phase = 0;
-        hideTimer.interval = bannerWin.kind === "ready" ? 900 : (bannerWin.kind === "warning" ? 2300 : 1800);
+        hideTimer.interval = bannerWin.kind === "ready" ? 950 : (bannerWin.kind === "warning" ? 2400 : 1850);
         hideTimer.restart(); dropAnim.restart();
         topHazard.requestPaint(); botHazard.requestPaint(); pixelCanvas.requestPaint();
     }
 
-    Timer { id: hideTimer; interval: 900; onTriggered: bannerWin.kind = "" }
+    Timer { id: hideTimer; interval: 950; onTriggered: bannerWin.kind = "" }
     Timer {
-        running: bannerWin.active; interval: 55; repeat: true
+        running: bannerWin.active; interval: 50; repeat: true
         onTriggered: { bannerWin.phase = (bannerWin.phase + 1) % 64; topHazard.requestPaint(); botHazard.requestPaint(); pixelCanvas.requestPaint(); }
     }
     Connections {
@@ -70,7 +70,7 @@ PanelWindow {
         function onCyanChanged() { topHazard.requestPaint(); botHazard.requestPaint(); pixelCanvas.requestPaint(); }
     }
 
-    NumberAnimation { id: dropAnim; target: bannerBox; property: "y"; from: -22; to: 0; duration: 110; easing.type: Easing.OutQuad }
+    NumberAnimation { id: dropAnim; target: bannerBox; property: "y"; from: -24; to: 0; duration: 120; easing.type: Easing.OutQuad }
 
     Rectangle {
         id: bannerBox; width: parent.width; height: parent.height
@@ -86,20 +86,24 @@ PanelWindow {
                     const ctx = getContext("2d"); ctx.clearRect(0, 0, width, height);
                     const word = bannerWin.pixelWord, px = word.length > 10 ? 4 : 6, charW = 5 * px + px;
                     const startX = Math.floor((width - (word.length * charW - px)) / 2), startY = Math.floor((height - 7 * px) / 2);
+                    const waveIdx = bannerWin.phase % Math.max(1, word.length + 4);
                     for (let i = 0; i < word.length; i++) {
                         const rows = bannerWin.glyphs[word[i]] || bannerWin.glyphs[" "], cx = startX + i * charW;
+                        const gleam = (i === waveIdx || i + 1 === waveIdx);
                         for (let r = 0; r < 7; r++) {
                             const bits = rows[r];
                             for (let c = 0; c < 5; c++) {
                                 if ((bits >> (4 - c)) & 1) {
                                     const x = cx + c * px, y = startY + r * px;
                                     ctx.fillStyle = Theme.border.toString(); ctx.fillRect(x + 2, y + 2, px, px);
-                                    ctx.fillStyle = bannerWin.mainColor.toString(); ctx.fillRect(x, y, px, px);
+                                    ctx.fillStyle = (gleam ? Theme.fg : bannerWin.mainColor).toString(); ctx.fillRect(x, y, px, px);
                                     if (r === 0 || !((rows[r - 1] >> (4 - c)) & 1)) { ctx.fillStyle = Theme.fg.toString(); ctx.fillRect(x, y, px, Math.max(1, Math.floor(px / 3))); }
                                 }
                             }
                         }
                     }
+                    const scanY = (bannerWin.phase * 3) % Math.max(1, Math.floor(height));
+                    ctx.fillStyle = Qt.rgba(1, 1, 1, 0.12).toString(); ctx.fillRect(0, scanY, width, 2);
                 }
             }
             Text { Layout.alignment: Qt.AlignHCenter; text: "▸  " + bannerWin.spacedTitle + "  ◂"; color: bannerWin.mainColor; font.family: Theme.font; font.pixelSize: Theme.fontSize + 1; font.bold: true }

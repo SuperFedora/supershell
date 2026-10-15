@@ -25,7 +25,7 @@ PanelWindow {
     readonly property var categories: pagesView.categories
     readonly property var currentCatObj: {
         for (const c of win.categories) if (c.id === win.activePage) return c;
-        return win.categories[0] || { id: "system", icon: "󰍹", title: "System", sub: "" };
+        return win.categories[0] || { id: "home", icon: "󰋜", title: "Home", sub: "" };
     }
     readonly property string userShort: String(Status.userAccount || "user").split("@")[0]
     readonly property string hostShort: String(Status.userAccount || "user@fedora").split("@")[1] || "workstation"
@@ -78,7 +78,7 @@ PanelWindow {
                 Layout.preferredWidth: 272; Layout.fillHeight: true; color: Theme.bg
                 ColumnLayout {
                     anchors { fill: parent; leftMargin: 14; rightMargin: 10; topMargin: 14; bottomMargin: 14 }
-                    spacing: 10
+                    spacing: 8
 
                     RowLayout {
                         Layout.fillWidth: true; Layout.leftMargin: 4; spacing: 8
@@ -88,11 +88,11 @@ PanelWindow {
 
                     // User Profile Header Card (Click -> Accounts)
                     Rectangle {
-                        Layout.fillWidth: true; implicitHeight: 54; radius: 6; color: usrM.containsMouse ? Theme.bgHover : "transparent"
+                        Layout.fillWidth: true; implicitHeight: 50; radius: 6; color: usrM.containsMouse ? Theme.bgHover : "transparent"
                         RowLayout {
                             anchors { fill: parent; leftMargin: 8; rightMargin: 8 } spacing: 12
                             Rectangle {
-                                implicitWidth: 38; implicitHeight: 38; radius: 19; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
+                                implicitWidth: 36; implicitHeight: 36; radius: 18; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
                                 Text { anchors.centerIn: parent; text: win.userShort.slice(0, 1).toUpperCase(); color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 2; font.bold: true }
                             }
                             ColumnLayout {
@@ -106,7 +106,7 @@ PanelWindow {
 
                     // Windows 11 "Find a setting" Search Box with Bottom Accent Line
                     Rectangle {
-                        Layout.fillWidth: true; implicitHeight: 36; radius: 5; color: Theme.bgAlt
+                        Layout.fillWidth: true; implicitHeight: 34; radius: 5; color: Theme.bgAlt
                         border.width: 1; border.color: searchBox.activeFocus ? Theme.blue : Theme.border
                         Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 1; rightMargin: 1 } height: 2; radius: 1; color: searchBox.activeFocus ? Theme.blue : "transparent" }
                         RowLayout {
@@ -126,7 +126,7 @@ PanelWindow {
                         }
                     }
 
-                    // 10 Clean Navigation Items with Left Vertical Accent Indicator
+                    // 11 Clean Navigation Items (Home + 10 Categories) with Left Vertical Accent Indicator
                     ColumnLayout {
                         Layout.fillWidth: true; Layout.fillHeight: true; spacing: 2
                         Repeater {
@@ -135,10 +135,10 @@ PanelWindow {
                                 id: catRow; required property var modelData
                                 readonly property bool isCur: win.searchQuery === "" && win.activePage === modelData.id
                                 readonly property int matchCount: pagesView.matchCountFor(modelData.id, win.searchQuery)
-                                Layout.fillWidth: true; implicitHeight: 38; radius: 6
-                                opacity: (win.searchQuery !== "" && matchCount === 0) ? 0.42 : 1.0
+                                Layout.fillWidth: true; implicitHeight: 35; radius: 6
+                                opacity: (win.searchQuery !== "" && modelData.id !== "home" && matchCount === 0) ? 0.42 : 1.0
                                 color: isCur ? Theme.bgAlt : (catM.containsMouse ? Theme.bgHover : "transparent")
-                                Rectangle { visible: catRow.isCur; width: 3; height: 18; radius: 1.5; anchors { left: parent.left; leftMargin: 2; verticalCenter: parent.verticalCenter } color: Theme.blue }
+                                Rectangle { visible: catRow.isCur; width: 3; height: 16; radius: 1.5; anchors { left: parent.left; leftMargin: 2; verticalCenter: parent.verticalCenter } color: Theme.blue }
                                 RowLayout {
                                     anchors { fill: parent; leftMargin: 14; rightMargin: 10 } spacing: 12
                                     Text { text: catRow.modelData.icon; color: catRow.isCur ? Theme.blue : Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize + 2 }
@@ -157,12 +157,12 @@ PanelWindow {
                 Rectangle { anchors { right: parent.right; top: parent.top; bottom: parent.bottom } width: 1; color: Theme.border; opacity: 0.45 }
             }
 
-            // ================ RIGHT CONTENT PANE (Page Header + Hero Strip + WinUI 3 Cards) ================
+            // ================ RIGHT CONTENT PANE (Page Header + Home Dashboard / Category Cards) ================
             ColumnLayout {
                 Layout.fillWidth: true; Layout.fillHeight: true; spacing: 0
 
                 Item {
-                    Layout.fillWidth: true; implicitHeight: win.searchQuery === "" && win.activePage === "system" ? 132 : 72
+                    Layout.fillWidth: true; implicitHeight: win.searchQuery === "" && win.activePage === "system" ? 132 : 68
                     ColumnLayout {
                         anchors { fill: parent; leftMargin: 28; rightMargin: 24; topMargin: 16; bottomMargin: 8 } spacing: 12
 
@@ -214,8 +214,18 @@ PanelWindow {
                     }
                 }
 
+                SettingsHome {
+                    visible: win.searchQuery === "" && win.activePage === "home"
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    hostShort: win.hostShort
+                    onSelectCategory: catId => win.selectCategory(catId)
+                    onExecuteCommand: (cmd, closeAfter) => win.runCmd(cmd, closeAfter)
+                }
+
                 SettingsPages {
-                    id: pagesView; Layout.fillWidth: true; Layout.fillHeight: true
+                    id: pagesView
+                    visible: win.searchQuery !== "" || win.activePage !== "home"
+                    Layout.fillWidth: true; Layout.fillHeight: true
                     activePage: win.activePage; searchQuery: win.searchQuery
                     onExecuteCommand: (cmd, closeAfter) => win.runCmd(cmd, closeAfter)
                 }

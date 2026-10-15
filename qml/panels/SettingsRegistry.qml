@@ -32,6 +32,7 @@ QtObject {
     function escSh(s) { return String(s || "").replace(/'/g, "'\\''"); }
 
     readonly property var categories: [
+        { id: "home",            icon: "󰋜", title: "Home",                 sub: "Device overview, recommended settings, personalization, Bluetooth, storage" },
         { id: "system",          icon: "󰍹", title: "System",               sub: "Display, sound, night light, GPU acceleration, storage" },
         { id: "devices",         icon: "󰂯", title: "Bluetooth & devices",  sub: "Bluetooth, printers, scanners, mouse, touchpad, keyboard, camera" },
         { id: "network",         icon: "󰤨", title: "Network & internet",   sub: "Wi-Fi, Ethernet, VPN, Tailscale, firewall, DNS" },
