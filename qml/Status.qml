@@ -14,7 +14,7 @@ Singleton {
     property real brightness: 1.0; property string idleMode: "poweroff"; property bool idleEnabled: true; property bool sfxEnabled: true
     property real spkVol: 0.6; property bool spkMuted: false; property real micVol: 1.0; property bool micMuted: false; property bool webcamEnabled: true
     property var audioSinks: []; property var audioSources: []; property var startupApps: []; property var fastfetchList: []; property var topProcs: []
-    property int kbdBacklight: 0; property bool bat0Present: false; property string bat0Threshold: "Standard (0% - 100%)"; property string aiAgent: "agy"
+    property int kbdBacklight: 0; property bool bat0Present: false; property string bat0Threshold: "Standard (0% - 100%)"; property string aiAgent: "ollama"; property string aiAgentLabel: "Ollama (Pi)"; property string ollamaEndpoint: "127.0.0.1:11434"; property string ollamaModel: "llama3.2"; property var aiHarnesses: []; property var llmServers: []
     property bool rgbSupported: false; property int rgbCount: 0; property string rgbHex: "7aa2f7"
     property string aiReply: "Ready. Type a prompt above and press Enter for an instant answer, or click [ OPEN TERMINAL ] for an interactive session."
     property bool aiBusy: false; property string _pendingAiPrompt: ""
@@ -72,7 +72,8 @@ Singleton {
             "echo \"SPK|$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null)\"; echo \"MIC|$(wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null)\"; " +
             "echo \"CAM|$(cat ~/.config/superfedora/webcam-enabled 2>/dev/null || echo on)\"; " +
             "~/.config/hypr/scripts/toggle-touchpad.sh dpms sync >/dev/null 2>&1 || true; k=$(cat /sys/class/leds/tpacpi::kbd_backlight/brightness ~/.config/superfedora/kbd-backlight 2>/dev/null | head -n1); echo \"KBD|${k:-0}\"; " +
-            "ag=$(grep '^AI_AGENT=' ~/.config/superfedora/quake-ai.env 2>/dev/null | cut -d= -f2 | tr -d \"'\\\"\"); echo \"AGY|${ag:-agy}\"; " +
+            "(~/.config/hypr/scripts/quake-ai.sh list-agents 2>/dev/null || true); " +
+            "sf_srv=~/.config/superfedora/llm-servers.conf; [ -f \"$sf_srv\" ] || printf 'Local Workstation|127.0.0.1:11434|ollama|llama3.2\\nGPU Server 1 (2x GPU)|gpu-srv-1:11434|ollama|qwen2.5-coder:32b\\nGPU Server 2 (2x GPU)|gpu-srv-2:11434|ollama|deepseek-r1:32b\\n' > \"$sf_srv\"; awk -F'|' 'NF>=2 && $1!~/^#/{printf \"LLMS|%s|%s|%s|%s\\n\",$1,$2,($3?$3:\"ollama\"),($4?$4:\"llama3.2\")}' \"$sf_srv\" 2>/dev/null || true; " +
             "awk -F'=' '/^[[:space:]]*exec-once[[:space:]]*=/{c=$2; sub(/^[[:space:]]+/,\"\",c); if(c!~/(systemctl|superfedora\\.locked|hyprpolkitagent|sfx play startup)/) print \"STA|\"c}' ~/.config/hypr/conf/autostart.conf 2>/dev/null || true; " +
             "(fastfetch -s OS:Host:Kernel:Uptime:WM:CPU:GPU:Memory:Disk:LocalIP --logo none --pipe true 2>/dev/null || printf 'OS: Fedora Linux\\nKernel: %s\\n' \"$(uname -sr)\") | awk -F': ' 'NF>=2{print \"FF|\"$1\"|\"substr($0,index($0,\": \")+2)}'; " +
             "ps -eo pid,pcpu,pmem,comm --sort=-pcpu --no-headers 2>/dev/null | head -n 7 | awk '{c=$4; for(i=5;i<=NF;i++) c=c\" \"$i; printf \"PRC|%s|%s|%s|%s\\n\",$1,$2,$3,c}'; " +
@@ -83,7 +84,7 @@ Singleton {
             "for f in ~/.local/share/applications/*.desktop; do [ -f \"$f\" ] || continue; id=$(basename \"$f\" .desktop); nm=$(grep -m1 '^Name=' \"$f\" | cut -d= -f2-); ic=$(grep -m1 '^Icon=' \"$f\" | cut -d= -f2-); ex=$(grep -m1 '^Exec=' \"$f\" | cut -d= -f2- | sed 's/ %[a-zA-Z]//g'); wm=$(grep -m1 '^StartupWMClass=' \"$f\" | cut -d= -f2-); nd=$(grep -m1 '^NoDisplay=' \"$f\" | cut -d= -f2-); [ \"$nd\" = \"true\" ] || printf 'APP|%s|%s|%s|%s|%s\\n' \"$id\" \"$nm\" \"$ic\" \"$ex\" \"$wm\"; done"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const lines = text.trim().split("\n"), type = lines[0] || "none", byName = {}, list = [], saved = [], sinks = [], sources = [], stApps = [], ff = [], procs = [], lApps = [], lMap = {};
+                const lines = text.trim().split("\n"), type = lines[0] || "none", byName = {}, list = [], saved = [], sinks = [], sources = [], stApps = [], ff = [], procs = [], lApps = [], lMap = {}, harnesses = [], servers = [];
                 let activeSsid = "", activeSig = 0;
                 for (let i = 1; i < lines.length; i++) {
                     if (lines[i].startsWith("WFR|")) { root.wifiEnabled = (lines[i].split("|")[1] || "enabled").trim() !== "disabled"; continue; }
@@ -94,7 +95,9 @@ Singleton {
                     if (lines[i].startsWith("MIC|")) { const mm = lines[i].match(/Volume:\s*([0-9.]+)/); if (mm) root.micVol = Math.max(0, Math.min(1, Number(mm[1]))); root.micMuted = lines[i].includes("[MUTED]"); continue; }
                     if (lines[i].startsWith("CAM|")) { const cv = (lines[i].split("|")[1] || "on").trim().toLowerCase(); root.webcamEnabled = (cv !== "off" && cv !== "0" && cv !== "false"); continue; }
                     if (lines[i].startsWith("KBD|")) { root.kbdBacklight = Math.max(0, Math.min(2, Number(lines[i].split("|")[1] || 0))); continue; }
-                    if (lines[i].startsWith("AGY|")) { root.aiAgent = (lines[i].split("|")[1] || "agy").trim(); continue; }
+                    if (lines[i].startsWith("CFG|")) { const cp = lines[i].split("|"); root.aiAgent = (cp[1] || "ollama").trim(); root.aiAgentLabel = (cp[2] || root.aiAgent).trim(); root.ollamaEndpoint = (cp[3] || "127.0.0.1:11434").trim(); root.ollamaModel = (cp[4] || "llama3.2").trim(); continue; }
+                    if (lines[i].startsWith("AGENT|")) { const ap = lines[i].split("|"); if (ap.length >= 7 && (ap[5] === "1" || ap[2] === "custom" || ap[6] === "1" || ap[1] === "ollama")) harnesses.push({ id: ap[1], cat: ap[2], label: ap[3], cmd: ap[4], installed: ap[5] === "1", active: ap[6] === "1" }); continue; }
+                    if (lines[i].startsWith("LLMS|")) { const lp = lines[i].split("|"); if (lp.length >= 3) servers.push({ name: lp[1], host: lp[2], kind: lp[3] || "ollama", model: lp[4] || "llama3.2", active: lp[2] === root.ollamaEndpoint }); continue; }
                     if (lines[i].startsWith("STA|")) { const sc = lines[i].slice(4).trim(); if (sc) stApps.push(sc); continue; }
                     if (lines[i].startsWith("FF|")) { const fp = lines[i].split("|"); if (fp.length >= 3) ff.push({ k: fp[1], v: fp.slice(2).join("|") }); continue; }
                     if (lines[i].startsWith("PRC|")) { const pp = lines[i].split("|"); if (pp.length >= 5) procs.push({ pid: pp[1], cpu: pp[2], mem: pp[3], cmd: pp[4] }); continue; }
@@ -117,7 +120,7 @@ Singleton {
                     else if (list.length < 8 || act) { const item = { ssid: name, signal: sig, active: act, open: open, security: open ? "OPEN" : "WPA", saved: saved.indexOf(name) !== -1 }; byName[name] = item; list.push(item); }
                 }
                 list.sort((a, b) => (b.active - a.active) || (b.signal - a.signal));
-                root.savedWifiList = saved; root.audioSinks = sinks; root.audioSources = sources; root.startupApps = stApps; root.fastfetchList = ff; root.topProcs = procs; root.localApps = lApps; root.localAppsMap = lMap;
+                root.savedWifiList = saved; root.audioSinks = sinks; root.audioSources = sources; root.startupApps = stApps; root.fastfetchList = ff; root.topProcs = procs; root.localApps = lApps; root.localAppsMap = lMap; root.aiHarnesses = harnesses; root.llmServers = servers;
                 root.wifiList = list.slice(0, 8); root.netType = (type === "wifi" || type === "ethernet") ? type : "none";
                 root.signal = type === "wifi" ? activeSig : 0; root.ssid = type === "wifi" ? activeSsid : "";
             }
@@ -172,22 +175,18 @@ Singleton {
     function toggleWebcam() { root.webcamEnabled = !root.webcamEnabled; root.playSfx("toggle"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/toggle-touchpad.sh webcam " + (root.webcamEnabled ? "on" : "off")]); }
     function setKbdBacklight(lvl) { const next = (typeof lvl === "number") ? Math.max(0, Math.min(2, lvl)) : ((root.kbdBacklight + 1) % 3); root.kbdBacklight = next; root.playSfx("toggle"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/toggle-touchpad.sh kbd-backlight " + next]); }
     function selectAiAgent(id) { root.aiAgent = id; root.playSfx("click"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/quake-ai.sh select-agent '" + id + "'"]); }
-    function nextAiAgent() { const ids = ["agy", "mcode", "grok", "vibe", "claude", "chatgpt", "ollama"]; root.selectAiAgent(ids[(ids.indexOf(root.aiAgent) + 1) % ids.length]); }
+    function nextAiAgent() { root.playSfx("click"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/quake-ai.sh next-agent"]); }
+    function connectLlmServer(host, model) { const h = String(host || "").trim().replace(/'/g, ""), m = String(model || "").trim().replace(/'/g, ""); if (!h) return; root.ollamaEndpoint = h; if (m) root.ollamaModel = m; root.aiAgent = "ollama"; root.playSfx("confirm"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/quake-ai.sh set-ollama '" + h + "' '" + m + "' && ~/.config/hypr/scripts/quake-ai.sh select-agent ollama"]); }
+    function saveLlmServer(name, host, kind, model) { const nm = String(name || host || "GPU Node").trim().replace(/[|']/g, ""), h = String(host || "").trim().replace(/[|']/g, ""), k = String(kind || "ollama").trim().replace(/[|']/g, ""), m = String(model || "llama3.2").trim().replace(/[|']/g, ""); if (!h) return; root.playSfx("confirm"); Quickshell.execDetached(["sh", "-c", "f=~/.config/superfedora/llm-servers.conf; mkdir -p ~/.config/superfedora; touch \"$f\"; awk -F'|' -v h='" + h + "' '$2!=h' \"$f\" > \"$f.tmp\" && mv \"$f.tmp\" \"$f\"; printf '%s|%s|%s|%s\\n' '" + nm + "' '" + h + "' '" + k + "' '" + m + "' >> \"$f\"; ~/.config/hypr/scripts/quake-ai.sh set-ollama '" + h + "' '" + m + "' && ~/.config/hypr/scripts/quake-ai.sh select-agent ollama"]); }
+    function removeLlmServer(host) { const h = String(host || "").trim().replace(/[|']/g, ""); if (!h) return; root.playSfx("click"); Quickshell.execDetached(["sh", "-c", "f=~/.config/superfedora/llm-servers.conf; [ -f \"$f\" ] && awk -F'|' -v h='" + h + "' '$2!=h' \"$f\" > \"$f.tmp\" && mv \"$f.tmp\" \"$f\"; qs ipc call status refresh"]); }
+    function addCustomHarness(id, label, cmd) { const i = String(id || "").trim().replace(/['|]/g, ""), l = String(label || i).trim().replace(/['|]/g, ""), c = String(cmd || i).trim().replace(/['|]/g, ""); if (!i || !c) return; root.playSfx("confirm"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/quake-ai.sh add-agent '" + i + "' '" + l + "' '" + c + "' && ~/.config/hypr/scripts/quake-ai.sh select-agent '" + i + "'"]); }
+    function removeCustomHarness(id) { const i = String(id || "").trim().replace(/['|]/g, ""); if (!i) return; root.playSfx("click"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/quake-ai.sh remove-agent '" + i + "' && qs ipc call status refresh"]); }
 
-    function normalizeDeckTab(sec) {
-        const s = String(sec || "").toLowerCase();
-        if (s === "`" || s === "grave" || s === "tilde" || s === "ai" || s === "harness" || s === "agent") return "ai";
-        if (s === "sys" || s === "btop" || s === "fastfetch" || s === "vitals" || s === "monitor" || s === "1") return "sys";
-        if (s === "wifi" || s === "network" || s === "net" || s === "wlan" || s === "2") return "wifi"; if (s === "bluetooth" || s === "bt" || s === "devices" || s === "3") return "bluetooth";
-        if (s === "audio" || s === "sound" || s === "sensors" || s === "cam" || s === "mic" || s === "speaker" || s === "io" || s === "zerotrust" || s === "4") return "audio";
-        if (s === "display" || s === "displays" || s === "screen" || s === "kbd" || s === "input" || s === "5") return "display"; if (s === "theme" || s === "personalization" || s === "appearance" || s === "surface" || s === "6") return "theme";
-        if (s === "shell" || s === "windowing" || s === "multitasking" || s === "bar" || s === "dock" || s === "7") return "shell"; if (s === "forge" || s === "apps" || s === "software" || s === "build" || s === "8") return "forge";
-        if (s === "state" || s === "snapshots" || s === "btrfs" || s === "system" || s === "9") return "state";
-        return (s === "power" || s === "battery" || s === "session" || s === "0" || s === "10") ? "power" : (root.superDeckSection || "ai");
-    }
+    function normalizeDeckTab(_sec) { return "ai"; }
     function normalizeSettingsPage(p) {
         const s = String(p || "").trim().toLowerCase();
-        if (s === "" || s === "home" || s === "overview" || s === "dashboard" || s === "main" || s === "ai" || s === "`" || s === "0") return "home";
+        if (s === "" || s === "home" || s === "overview" || s === "dashboard" || s === "main" || s === "0") return "home";
+        if (s === "ai" || s === "llm" || s === "ollama" || s === "models" || s === "openclaw" || s === "agents" || s === "`") return "ai";
         if (s === "system" || s === "sys" || s === "display" || s === "displays" || s === "audio" || s === "sound" || s === "1" || s === "4" || s === "5") return "system";
         if (s === "devices" || s === "bluetooth" || s === "bt" || s === "printers" || s === "printer" || s === "input" || s === "keyboard" || s === "mouse" || s === "3") return "devices";
         if (s === "network" || s === "net" || s === "wifi" || s === "2") return "network";
@@ -201,7 +200,7 @@ Singleton {
         return "home";
     }
     property bool _quakeShown: false
-    function syncQuakeAi(hdrH) { const want = root.superDeckOpen && root.normalizeDeckTab(root.superDeckSection) === "ai"; if (!want && !root._quakeShown) return; root._quakeShown = want; Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/quake-ai.sh " + (want ? ("show " + (hdrH || 40)) : "hide keep-deck") + " >/dev/null 2>&1"]); }
+    function syncQuakeAi(hdrH) { const want = root.superDeckOpen; if (!want && !root._quakeShown) return; root._quakeShown = want; Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/quake-ai.sh " + (want ? ("show " + (hdrH || 40)) : "hide keep-deck") + " >/dev/null 2>&1"]); }
     onSuperDeckOpenChanged: { if (root.superDeckOpen) { root.settingsOpen = false; root.appGridOpen = false; root.recorderOpen = false; root.centerToolsOpen = false; root.pocketOpen = false; } root.syncQuakeAi(); }
     onSuperDeckSectionChanged: if (root.superDeckOpen) root.syncQuakeAi()
     onAppGridOpenChanged: if (root.appGridOpen) { root.superDeckOpen = false; root.settingsOpen = false; root.recorderOpen = false; }
@@ -209,7 +208,7 @@ Singleton {
     onSettingsOpenChanged: if (root.settingsOpen) { root.superDeckOpen = false; root.appGridOpen = false; root.recorderOpen = false; }
     function openSettings(page) { root.superDeckOpen = false; root.settingsPage = page ? root.normalizeSettingsPage(page) : "home"; root.settingsOpen = true; root.refresh(); root.playSfx("click"); }
     function toggleSettings(page) { if (!page) { root.superDeckOpen = false; if (!root.settingsOpen) root.settingsPage = "home"; root.settingsOpen = !root.settingsOpen; } else { const p = root.normalizeSettingsPage(page); if (root.settingsOpen && root.settingsPage === p) root.settingsOpen = false; else { root.superDeckOpen = false; root.settingsPage = p; root.settingsOpen = true; } } if (root.settingsOpen) root.refresh(); root.playSfx("click"); }
-    function toggleSuperDeck(sec) { const t = (!sec || sec === "last") ? root.normalizeDeckTab(root.superDeckSection) : root.normalizeDeckTab(sec), wasOpen = root.superDeckOpen, prev = root.superDeckSection; root.settingsOpen = false; root.appGridOpen = false; root.recorderOpen = false; root.superDeckPowerHighlight = (t === "power"); root.superDeckSection = t; root.superDeckOpen = true; if (wasOpen && prev === t) root.syncQuakeAi(); root.refresh(); root.playSfx("click"); }
+    function toggleSuperDeck(_sec) { root.settingsOpen = false; root.appGridOpen = false; root.recorderOpen = false; root.superDeckSection = "ai"; root.superDeckOpen = !root.superDeckOpen; root.refresh(); root.playSfx("click"); }
     function toggleIdle() { root.idleMode = root.idleMode === "poweroff" ? "lock" : (root.idleMode === "lock" ? "screensaver" : "poweroff"); root.idleEnabled = root.idleMode === "poweroff"; root.playSfx("toggle"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/toggle-idle.sh " + root.idleMode]); }
     function startScreenRecord(region) { root.superDeckOpen = false; root.recorderOpen = !region; root.screenRecording = !region; root.screenPaused = false; root.playSfx("confirm"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/screenshot.sh " + (region ? "record-region" : "record")]); }
     function pauseScreenRecord() { root.screenPaused = !root.screenPaused; root.playSfx("toggle"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/screenshot.sh record-pause"]); }

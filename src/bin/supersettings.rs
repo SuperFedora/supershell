@@ -13,18 +13,20 @@ const PAGES: &[(&str, &str, &str)] = &[
     ("system", "01 System & Display", "Monitors, GPU VA-API Codecs, Audio, Brightness, Nightlight"),
     ("devices", "02 Devices & Bluetooth", "Bluetooth controllers, On-Demand CUPS Socket, Touchpad & Input"),
     ("network", "03 Network & VPN", "Wi-Fi SSIDs, Ethernet, DNS, Firewalld & WireGuard/Tailscale"),
-    ("personalization", "04 Personalization", "16-Bit Rainbow Palettes, Day/Night Mode, Corners, Wallpapers"),
-    ("windowing", "05 Windowing & Shell", "SuperDock Edge/Autohide, SuperBar HUD, VFR & Direct Scanout"),
-    ("notifications", "06 Notifications & Clock", "Do Not Disturb, 10 Cast Specialists, 24h Clock & Overlay"),
-    ("apps", "07 Apps & SuperForge", "2-Tier Binary Cache, -march=native Builds, Firefox WebApps"),
-    ("accounts", "08 Accounts & Security", "User Groups, Shell, SSH ED25519 Keys, PAM & Fingerprint"),
-    ("accessibility", "09 Accessibility", "UI Font Scale, Animations, Screen Reader (Orca), Mono Audio"),
-    ("power", "10 Power, Mode & Vault", "Workstation Modes (Stealth/Balanced/Forge/Arcade), Btrfs Vault & AI"),
+    ("ai", "04 AI & LLM Servers", "Self-hosted GPU cluster, Ollama & vLLM endpoints, OpenClaw & CLI harnesses"),
+    ("personalization", "05 Personalization", "16-Bit Rainbow Palettes, Day/Night Mode, Corners, Wallpapers"),
+    ("windowing", "06 Windowing & Shell", "SuperDock Edge/Autohide, SuperBar HUD, VFR & Direct Scanout"),
+    ("notifications", "07 Notifications & Clock", "Do Not Disturb, 10 Cast Specialists, 24h Clock & Overlay"),
+    ("apps", "08 Apps & SuperForge", "2-Tier Binary Cache, -march=native Builds, Firefox WebApps"),
+    ("accounts", "09 Accounts & Security", "User Groups, Shell, SSH ED25519 Keys, PAM & Fingerprint"),
+    ("accessibility", "10 Accessibility", "UI Font Scale, Animations, Screen Reader (Orca), Mono Audio"),
+    ("power", "11 Power, Mode & Vault", "Workstation Modes (Stealth/Balanced/Forge/Arcade) & Btrfs Vault"),
 ];
 
 fn normalize_page(raw: &str) -> &'static str {
     match raw.trim().to_ascii_lowercase().as_str() {
         "" | "home" | "overview" | "dashboard" | "0" => "home",
+        "ai" | "llm" | "ollama" | "models" | "openclaw" | "agents" => "ai",
         "system" | "sys" | "display" | "displays" | "audio" | "sound" | "1" => "system",
         "devices" | "bluetooth" | "bt" | "printers" | "printer" | "input" | "2" => "devices",
         "network" | "net" | "wifi" | "3" => "network",
@@ -34,7 +36,7 @@ fn normalize_page(raw: &str) -> &'static str {
         "apps" | "forge" | "startup" | "autostart" | "7" => "apps",
         "accounts" | "users" | "user" | "8" => "accounts",
         "accessibility" | "a11y" | "acc" | "9" => "accessibility",
-        "power" | "state" | "ai" | "updates" | "recovery" | "10" => "power",
+        "power" | "state" | "updates" | "recovery" | "10" => "power",
         _ => "home",
     }
 }

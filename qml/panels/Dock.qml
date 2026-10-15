@@ -110,7 +110,7 @@ PanelWindow {
         width: 340; height: 54; radius: Theme.radiusSm; color: Theme.bg; border.width: 2; border.color: win.forgeCol
         x: win.position === "left" ? (dockBar.x + dockBar.width + 8) : (win.position === "right" ? (dockBar.x - width - 8) : Math.round((win.width - width) / 2))
         y: win.position === "top" ? (dockBar.y + dockBar.height + 8) : (win.position === "bottom" ? (dockBar.y - height - 8) : Math.round(dockBar.y + (dockBar.height - height) / 2))
-        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.toggleSuperDeck("forge") }
+        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettings("apps") }
         ColumnLayout {
             anchors { fill: parent; margins: 7 } spacing: 3
             RowLayout { Layout.fillWidth: true; spacing: 6; Text { text: "󰙪 FORGE: " + (Status.forgeTarget || "working"); color: win.forgeCol; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.bold: true; elide: Text.ElideRight; Layout.fillWidth: true } Text { text: Status.forgePct + "%"; color: Theme.cyan; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.bold: true } Text { text: Status.forgeBusy ? "[STOP]" : "[×]"; color: Status.forgeBusy ? Theme.red : Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.bold: true; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (Status.forgeBusy) Status.stopForge(); else Status.dismissForgeBanner(); } } } }
@@ -185,7 +185,7 @@ PanelWindow {
                 id: forgeDockSlot; visible: win.forgeVisible; implicitWidth: 44; implicitHeight: 44; radius: Theme.radiusSm; color: Theme.bgAlt; border.width: 2; border.color: win.forgeCol
                 ColumnLayout { anchors.centerIn: parent; spacing: 0; Text { Layout.alignment: Qt.AlignHCenter; text: "󰙪"; color: win.forgeCol; font.family: Theme.font; font.pixelSize: 16 } Text { Layout.alignment: Qt.AlignHCenter; text: Status.forgePct + "%"; color: Theme.fg; font.family: Theme.font; font.pixelSize: 9; font.bold: true } }
                 Rectangle { width: Math.max(4, Math.round(36 * Status.forgePct / 100)); height: 3; anchors { bottom: parent.bottom; bottomMargin: 2; horizontalCenter: parent.horizontalCenter } color: win.forgeCol }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.toggleSuperDeck("forge") }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettings("apps") }
             }
             Rectangle { width: win.isVert ? 28 : 2; height: win.isVert ? 2 : 28; Layout.alignment: Qt.AlignCenter; color: Theme.border }
             Repeater {
@@ -203,7 +203,7 @@ PanelWindow {
                         onEntered: { win.hoveredSlotIdx = win.dockItems.length + 1 + ioSlot.index; win.hoveredName = ioSlot.modelData.tip; }
                         onExited: if (win.hoveredSlotIdx === win.dockItems.length + 1 + ioSlot.index) win.hoveredName = ""
                         onClicked: e => {
-                            win.menuTarget = null; win.settingsMenu = false; if (e.button === Qt.RightButton) { Status.toggleSuperDeck("zerotrust"); return; }
+                            win.menuTarget = null; win.settingsMenu = false; if (e.button === Qt.RightButton) { Status.openSettings(ioSlot.modelData.id === "cam" ? "devices" : "system"); return; }
                             if (ioSlot.modelData.id === "spk") { const m = !win.spkMuted; if (win.spkReady) win.sink.audio.muted = m; Status.toggleSpeakerMute(m); }
                             else if (ioSlot.modelData.id === "mic") { const m = !win.micMuted; if (win.micReady) win.source.audio.muted = m; Status.toggleMicMute(m); } else Status.toggleWebcam();
                         }

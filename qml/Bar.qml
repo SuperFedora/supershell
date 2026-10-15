@@ -79,7 +79,7 @@ PanelWindow {
             { id: "idle",   active: Status.idleMode !== "poweroff", col: Status.idleMode === "lock" ? Theme.cyan : Theme.yellow, txt: Status.idleMode === "lock" ? "󰅶 󰌾" : (Status.idleMode === "screensaver" ? "󰅶" : "󰒲"), tip: Status.idleMode === "lock" ? "Coffee / Idle Mode: Lock After Timer (2m Screensaver → 5m Lock · No Screen Power Off) · Click to cycle" : (Status.idleMode === "screensaver" ? "Coffee / Idle Mode: Only Screensaver (2m Screensaver · Never Locks or Powers Off) · Click to cycle" : "Coffee / Idle Mode: Screen Power Off (2m Screensaver → 5m Lock → 10m Screen Off) · Click to cycle") }
         ]
         function triggerTool(id, rightBtn) {
-            if (id === "idle") { if (rightBtn) bar.openDeck("power"); else Status.toggleIdle(); }
+            if (id === "idle") { if (rightBtn) Status.openSettings("power"); else Status.toggleIdle(); }
             else if (id === "record") { calendarPopup.mode = ""; if (rightBtn) Status.startScreenRecord(true); else { Status.recorderOpen = !Status.recorderOpen; Status.playSfx("click"); } }
             else if (id === "shot") bar.run("~/.config/hypr/scripts/screenshot.sh " + (rightBtn ? "screen" : "region"));
             else if (id === "color") bar.run("~/.config/hypr/scripts/screenshot.sh color");
@@ -183,17 +183,17 @@ PanelWindow {
                 return "󰐥";
             }
             function iconTip(id) {
-                if (id === "wifi") return "Wi-Fi: " + (!Status.wifiEnabled ? "Off" : (Status.ssid || Status.netType)) + " (Right-click: Toggle Radio)";
-                if (id === "bluetooth") return "Bluetooth (Right-click: Toggle Power)";
-                if (id === "speaker") return "Speaker: " + (quickPill.muted ? "Muted" : Math.round(quickPill.vol * 100) + "%") + " (Scroll: Volume · Right-click: Mute)";
-                if (id === "mic") return "Microphone: " + (quickPill.micMuted ? "Muted" : Math.round(quickPill.micVol * 100) + "%") + " (Right-click: Mute)";
-                if (id === "camera") return "Webcam Driver: " + (Status.webcamEnabled ? "Enabled" : "Disabled") + " (Right-click: Toggle)";
-                if (id === "battery") return "Battery: " + quickPill.batPct + "% (" + (quickPill.batCharging ? "Charging" : "Discharging") + ")";
-                return "Power & Session Menu";
+                if (id === "wifi") return "Wi-Fi: " + (!Status.wifiEnabled ? "Off" : (Status.ssid || Status.netType)) + " (Click: Network Settings · Right-click: Toggle Radio)";
+                if (id === "bluetooth") return "Bluetooth (Click: Bluetooth Settings · Right-click: Toggle Power)";
+                if (id === "speaker") return "Speaker: " + (quickPill.muted ? "Muted" : Math.round(quickPill.vol * 100) + "%") + " (Click: Sound Settings · Scroll: Volume · Right-click: Mute)";
+                if (id === "mic") return "Microphone: " + (quickPill.micMuted ? "Muted" : Math.round(quickPill.micVol * 100) + "%") + " (Click: Sound Settings · Right-click: Mute)";
+                if (id === "camera") return "Webcam Driver: " + (Status.webcamEnabled ? "Enabled" : "Disabled") + " (Click: Device Settings · Right-click: Toggle)";
+                if (id === "battery") return "Battery: " + quickPill.batPct + "% (" + (quickPill.batCharging ? "Charging" : "Discharging") + ") · Click: Power Settings";
+                return "Power & Session Settings (Right-click: Lock Screen)";
             }
-            function iconSection(id) { return (id === "wifi" || id === "bluetooth") ? id : ((id === "battery" || id === "power") ? "power" : "audio"); }
+            function iconPage(id) { return id === "wifi" ? "network" : ((id === "bluetooth" || id === "camera") ? "devices" : ((id === "battery" || id === "power") ? "power" : "system")); }
             function iconColor(id, hovered) {
-                if (Status.superDeckOpen && Status.superDeckSection === quickPill.iconSection(id)) return Theme.cyan;
+                if (Status.settingsOpen && Status.settingsPage === quickPill.iconPage(id)) return Theme.cyan;
                 if (hovered) return id === "power" ? Theme.red : Theme.cyan;
                 if (id === "wifi") return (!Status.wifiEnabled || Status.netType === "none") ? Theme.muted : Theme.fg;
                 if (id === "bluetooth") return (quickPill.btAdapter && quickPill.btAdapter.enabled) ? (quickPill.btConnected > 0 ? Theme.fg : Theme.fgDim) : Theme.muted;
@@ -209,7 +209,7 @@ PanelWindow {
                 else if (id === "speaker") { const m = !quickPill.muted; if (quickPill.audioReady) quickPill.sink.audio.muted = m; Status.toggleSpeakerMute(m); }
                 else if (id === "mic") { const m = !quickPill.micMuted; if (quickPill.micReady) quickPill.source.audio.muted = m; Status.toggleMicMute(m); }
                 else if (id === "camera") Status.toggleWebcam();
-                else bar.openDeck("power");
+                else bar.run("qs ipc --any-display call lock activate >/dev/null 2>&1 || loginctl lock-session");
             }
 
             implicitWidth: pillRow.implicitWidth + 6; implicitHeight: Theme.barHeight - 6; color: "transparent"; border.width: 0
@@ -237,7 +237,7 @@ PanelWindow {
                                 onContainsMouseChanged: if (!slotItem.isDiv) bar.setTip(quickPill.iconTip(slotItem.modelData), containsMouse)
                                 onPressed: e => { dragStartX = e.x; didDrag = false; }
                                 onPositionChanged: e => { if (pressedButtons & Qt.LeftButton) { const dx = e.x - dragStartX; if (Math.abs(dx) >= 24) { didDrag = true; Status.moveBarIcon(slotItem.modelData, dx > 0 ? 1 : -1); dragStartX = e.x; } } }
-                                onClicked: e => { if (!didDrag) { if (e.button === Qt.RightButton) quickPill.toggleHardware(slotItem.modelData); else bar.openDeck(quickPill.iconSection(slotItem.modelData)); } }
+                                onClicked: e => { if (!didDrag) { calendarPopup.mode = ""; if (e.button === Qt.RightButton) quickPill.toggleHardware(slotItem.modelData); else Status.toggleSettings(quickPill.iconPage(slotItem.modelData)); } }
                                 onWheel: wheel => {
                                     const step = wheel.angleDelta.y > 0 ? 0.05 : -0.05;
                                     if (slotItem.modelData === "speaker") { const v = Math.max(0, Math.min(1, quickPill.vol + step)); if (quickPill.audioReady) quickPill.sink.audio.volume = v; Status.setSpeakerVolume(v); }

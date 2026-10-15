@@ -126,7 +126,7 @@ PanelWindow {
                         }
                     }
 
-                    // 11 Clean Navigation Items (Home + 10 Categories) with Left Vertical Accent Indicator
+                    // 12 Clean Navigation Items (Home + 11 Categories) with Left Vertical Accent Indicator
                     ColumnLayout {
                         Layout.fillWidth: true; Layout.fillHeight: true; spacing: 2
                         Repeater {
@@ -135,7 +135,7 @@ PanelWindow {
                                 id: catRow; required property var modelData
                                 readonly property bool isCur: win.searchQuery === "" && win.activePage === modelData.id
                                 readonly property int matchCount: pagesView.matchCountFor(modelData.id, win.searchQuery)
-                                Layout.fillWidth: true; implicitHeight: 35; radius: 6
+                                Layout.fillWidth: true; implicitHeight: 32; radius: 6
                                 opacity: (win.searchQuery !== "" && modelData.id !== "home" && matchCount === 0) ? 0.42 : 1.0
                                 color: isCur ? Theme.bgAlt : (catM.containsMouse ? Theme.bgHover : "transparent")
                                 Rectangle { visible: catRow.isCur; width: 3; height: 16; radius: 1.5; anchors { left: parent.left; leftMargin: 2; verticalCenter: parent.verticalCenter } color: Theme.blue }
@@ -174,8 +174,8 @@ PanelWindow {
                             }
                             Rectangle {
                                 implicitWidth: 106; implicitHeight: 30; radius: 5; color: qdM.containsMouse ? Theme.bgHover : Theme.bgAlt; border.width: 1; border.color: Theme.border
-                                Text { anchors.centerIn: parent; text: "󰣛  SuperDock"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 }
-                                MouseArea { id: qdM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.toggleSuperDeck(win.activePage) }
+                                Text { anchors.centerIn: parent; text: "󰚩  Quick AI"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 }
+                                MouseArea { id: qdM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.toggleSuperDeck("ai") }
                             }
                             Rectangle {
                                 implicitWidth: 32; implicitHeight: 30; radius: 5; color: clsM.containsMouse ? Theme.red : Theme.bgAlt; border.width: 1; border.color: clsM.containsMouse ? Theme.red : Theme.border

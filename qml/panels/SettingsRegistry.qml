@@ -14,10 +14,6 @@ QtObject {
     readonly property int batPct: batPresent ? Math.round(batDev.percentage <= 1 ? batDev.percentage * 100 : batDev.percentage) : 100
     readonly property bool batCharging: batPresent && (batDev.state === UPowerDeviceState.Charging || batDev.state === UPowerDeviceState.FullyCharged)
 
-    readonly property var aiAgents: [
-        { id: "agy", l: "AGY" }, { id: "mcode", l: "MCode" }, { id: "grok", l: "Grok" },
-        { id: "vibe", l: "Vibe" }, { id: "claude", l: "Claude" }, { id: "chatgpt", l: "Codex" }, { id: "ollama", l: "Ollama (Pi)" }
-    ]
     function matchesQuery(item, q) {
         if (!q) return true;
         const hay = (item.title + " " + item.sub + " " + item.kw + " " + item.cats.join(" ")).toLowerCase();
@@ -36,6 +32,7 @@ QtObject {
         { id: "system",          icon: "󰍹", title: "System",               sub: "Display, sound, night light, GPU acceleration, storage" },
         { id: "devices",         icon: "󰂯", title: "Bluetooth & devices",  sub: "Bluetooth, printers, scanners, mouse, touchpad, keyboard, camera" },
         { id: "network",         icon: "󰤨", title: "Network & internet",   sub: "Wi-Fi, Ethernet, VPN, Tailscale, firewall, DNS" },
+        { id: "ai",              icon: "󰚩", title: "AI & LLM servers",     sub: "Self-hosted GPU cluster, Ollama & vLLM endpoints, OpenClaw & CLI harnesses" },
         { id: "personalization", icon: "󰸉", title: "Personalization",      sub: "Color themes, dark mode, window corners, wallpaper, screensaver" },
         { id: "windowing",       icon: "󰕮", title: "Multitasking & docks", sub: "App dock position, workspace tiling, window gaps, top bar" },
         { id: "notifications",   icon: "󰂚", title: "Notifications",        sub: "Do Not Disturb, alert banners, specialist comms, clock & region" },
@@ -46,6 +43,13 @@ QtObject {
     ]
 
     readonly property var items: [
+        // 0. AI & LLM SERVERS
+        { id: "ai-cluster", cats: ["ai", "network"], icon: "󰢮", title: "Active LLM endpoint & model",
+          sub: "Endpoint: http://" + Status.ollamaEndpoint + "  ·  Model: " + Status.ollamaModel + "  ·  " + Status.llmServers.length + " saved GPU nodes", kw: "ai llm ollama vllm openai server gpu cluster endpoint host port model vram self hosted",
+          acts: [ { l: "Pick server & model", act: "cmd", v: "~/.config/hypr/scripts/quake-ai.sh prompt-ollama && qs ipc call status refresh" }, { l: "Probe VRAM & models", act: "cmd", v: "kitty --class floating-tui -e sh -c '~/.local/bin/sf-ollama table \"$(grep ^OLLAMA_HOST= ~/.config/superfedora/quake-ai.env 2>/dev/null | cut -d= -f2)\"; echo; read -n 1'" } ] },
+        { id: "ai-harness", cats: ["ai", "apps"], icon: "󰚩", title: "Active agent harness & OpenClaw",
+          sub: "Active harness: " + Status.aiAgentLabel + " (" + Status.aiAgent + ")  ·  No vendor lock-in", kw: "ai agent harness openclaw pi claude codex custom cli terminal",
+          acts: [ { l: "Quick AI console", act: "cmdClose", v: "qs ipc call superdeck toggleAi" }, { l: "Cycle harness", act: "cmd", v: "~/.config/hypr/scripts/quake-ai.sh next-agent && qs ipc call status refresh" }, { l: "Full TUI configurator", act: "cmd", v: "kitty --class floating-tui -e ~/.config/hypr/scripts/quake-ai.sh configure" } ] },
         // 1. SYSTEM
         { id: "disp-bright", cats: ["system", "power"], icon: "󰃠", title: "Brightness",
           sub: "Adjust built-in display backlight luminance", kw: "brightness backlight screen dim luminance display",
