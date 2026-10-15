@@ -215,7 +215,7 @@ Singleton {
     function stopScreenRecord() { root.screenRecording = false; root.screenPaused = false; root.recorderOpen = false; root.playSfx("click"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/screenshot.sh record-stop"]); }
     Process { id: idleProc; command: ["sh", "-c", "cat ~/.config/superfedora/idle-mode 2>/dev/null || ([ -f ~/.config/superfedora/stay-awake ] && echo screensaver || echo poweroff)"]; stdout: StdioCollector { onStreamFinished: { const m = text.trim(); root.idleMode = (m === "lock" || m === "screensaver") ? m : "poweroff"; root.idleEnabled = root.idleMode === "poweroff"; } } }
     property bool appGridOpen: false; property var clients: []; property var wsModes: ({}); property string defaultWsMode: "dwindle"
-    property var dockConfig: ({ position: "bottom", autohide: false, showAlways: true, opacity: 1.0, pinned: ["kitty", "org.mozilla.firefox", "com.google.Chrome", "org.gnome.Nautilus", "nvim", "btop"] })
+    property var dockConfig: ({ position: "bottom", autohide: false, showAlways: true, opacity: 1.0, pinned: ["kitty", "org.mozilla.firefox", "com.google.Chrome", "yazi", "nvim", "btop"] })
     readonly property var defaultBarIcons: ["wifi", "bluetooth", "|", "speaker", "mic", "camera", "|", "battery", "power"]
     readonly property var coreBarIcons: ["wifi", "bluetooth", "speaker", "mic", "camera", "battery", "power"]
     property var barIcons: ["wifi", "bluetooth", "|", "speaker", "mic", "camera", "|", "battery", "power"]; property var barHiddenIcons: []

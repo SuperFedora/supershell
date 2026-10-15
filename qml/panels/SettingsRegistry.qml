@@ -146,8 +146,8 @@ QtObject {
 
         // 7. APPS & FORGE
         { id: "app-defaults", cats: ["apps", "system"], icon: "󰀻", title: "Default apps",
-          sub: "Web browser: Firefox  ·  Terminal: Kitty  ·  File Explorer: Nautilus  ·  Editor: Neovim", kw: "default apps browser firefox terminal kitty file manager nautilus editor neovim",
-          acts: [ { l: "Firefox", act: "cmdClose", v: "firefox" }, { l: "Terminal", act: "cmdClose", v: "kitty" }, { l: "Files", act: "cmdClose", v: "nautilus" }, { l: "Neovim", act: "cmdClose", v: "kitty -e nvim" } ] },
+          sub: "Web browser: Firefox  ·  Terminal: Kitty  ·  File Explorer: Yazi  ·  Editor: Helix / Neovim", kw: "default apps browser firefox terminal kitty file manager yazi editor helix neovim libreoffice",
+          acts: [ { l: "Firefox", act: "cmdClose", v: "firefox" }, { l: "Terminal", act: "cmdClose", v: "kitty" }, { l: "Files (Yazi)", act: "cmdClose", v: "kitty --class superfiles -e yazi" }, { l: "Neovim", act: "cmdClose", v: "kitty -e nvim" } ] },
 
         // 8. ACCOUNTS
         { id: "usr-profile", cats: ["accounts", "system"], icon: "󰄽", title: "Your account",

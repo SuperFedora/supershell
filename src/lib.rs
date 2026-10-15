@@ -46,7 +46,7 @@ impl Default for DockConfig {
             position: "bottom".into(),
             autohide: false,
             show_always: true,
-            pinned: ["kitty", "org.mozilla.firefox", "com.google.Chrome", "org.gnome.Nautilus", "nvim", "btop"]
+            pinned: ["kitty", "org.mozilla.firefox", "com.google.Chrome", "yazi", "nvim", "btop"]
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),

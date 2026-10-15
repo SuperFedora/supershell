@@ -110,7 +110,7 @@ fn run_tui(env: &ShellEnv) -> i32 {
             let (pri, sec) = (env.pri(), env.sec());
             let rows = Layout::default().direction(Direction::Vertical).constraints([Constraint::Length(3), Constraint::Min(10), Constraint::Length(3)]).split(f.area());
             let hdr = Paragraph::new(Line::from(vec![
-                Span::styled(" [::] SUPERDOCK v0.4.0 ", Style::default().fg(Color::Black).bg(pri).add_modifier(Modifier::BOLD)),
+                Span::styled(" [::] SUPERDOCK v0.4.1 ", Style::default().fg(Color::Black).bg(pri).add_modifier(Modifier::BOLD)),
                 Span::raw(format!("  Edge: {}  |  Autohide: {}  |  ShowAlways: {} ", cfg.position, cfg.autohide, cfg.show_always)),
             ])).block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(pri)));
             f.render_widget(hdr, rows[0]);
@@ -157,7 +157,7 @@ fn main() {
     let mut cfg = load_dock(&env);
     match action {
         "tui" => process::exit(run_tui(&env)),
-        "version" | "--version" | "-V" => println!("superdock 0.4.0 (SuperFedora/supershell)"),
+        "version" | "--version" | "-V" => println!("superdock 0.4.1 (SuperFedora/supershell)"),
         "status" | "list" => {
             let modes = load_modes(&env);
             println!("Dock Position : {}", cfg.position);
