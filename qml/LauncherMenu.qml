@@ -2,15 +2,31 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 
-// Windows 11 (WinUI 3) Expanded Setting Card Drawers: Wallpaper Gallery, Theme Palettes, Top Bar Organizer, SuperForge & Storage Specs.
+// Windows 11 (WinUI 3) Level-3 Deep Sub-Panels: Full-pane dedicated views where every option gets its own card space.
 ColumnLayout {
     id: drawer
-    property string activeSection: "wallpaper"
-    property string selBarIcon: "wifi"
+    property string activeSection: "wp-gallery"
+    property var parentItem: null
+    property var btList: []
+    property string wifiPassSsid: ""
+    property string extFilter: ""
+    signal triggerSettingAction(var actObj)
     signal executeCommand(string cmd, bool closeAfter)
     signal closeRequested()
-    Layout.fillWidth: true; spacing: 10
+    Layout.fillWidth: true; spacing: 8
 
+    readonly property bool inExtPanel: drawer.activeSection.startsWith("ext-") || drawer.activeSection === "mime-exts"
+    readonly property int actIdx: drawer.activeSection.startsWith("act-") ? Number(drawer.activeSection.slice(4)) : -1
+    readonly property var curAct: (drawer.actIdx >= 0 && drawer.parentItem && drawer.parentItem.acts && drawer.parentItem.acts[drawer.actIdx]) ? drawer.parentItem.acts[drawer.actIdx] : null
+    function matchExt(it) {
+        if (!it) return false; const sec = drawer.activeSection, g = String(it.grp || ""), q = drawer.extFilter.trim().toLowerCase();
+        if (sec === "ext-web" && g !== "Web & Links") return false;
+        if (sec === "ext-docs" && g !== "Documents & Office") return false;
+        if (sec === "ext-media" && g !== "Images & Graphics" && g !== "Video & Audio") return false;
+        if (sec === "ext-code" && g !== "Code & Text" && g !== "Archives & Torrents" && g !== "Files & Disks") return false;
+        if (!q) return true;
+        return (String(it.ext) + " " + g + " " + String(it.mime) + " " + String(it.cur) + " " + (it.opts || []).join(" ")).toLowerCase().includes(q);
+    }
     readonly property var themePresets: [
         { id: "01-crimson", label: "Crimson", hex: "#f7768e" }, { id: "02-scarlet", label: "Scarlet", hex: "#ff5a5f" },
         { id: "03-ember",   label: "Ember",   hex: "#ff7b54" }, { id: "04-amber",   label: "Amber",   hex: "#ff9e64" },
@@ -21,224 +37,213 @@ ColumnLayout {
         { id: "13-indigo",  label: "Indigo",  hex: "#6c71c4" }, { id: "14-violet",  label: "Violet",  hex: "#bb9af7" },
         { id: "15-orchid",  label: "Orchid",  hex: "#cba6f7" }, { id: "16-fuchsia", label: "Fuchsia", hex: "#f43f5e" }
     ]
-    readonly property var barIconLabels: ({ wifi: "󰤨 Wi-Fi", bluetooth: "󰂯 Bluetooth", speaker: "󰕾 Speaker", mic: "󰍬 Mic", camera: "󰄀 Camera", battery: "󰁹 Battery", power: "󰐥 Power" })
+    readonly property var barIconLabels: ({ wifi: "󰤨  Wi-Fi status pill", bluetooth: "󰂯  Bluetooth status pill", speaker: "󰕾  Speaker volume pill", mic: "󰍬  Microphone pill", camera: "󰄀  Camera privacy pill", battery: "󰁹  Battery level pill", power: "󰐥  Power & session pill" })
 
+    function escSh(s) { return String(s || "").replace(/'/g, "'\\''"); }
     function runForge(target) { const q = String(target || forgeInput.text || "").trim().replace(/['"]/g, ""); if (!q) return; forgeInput.text = ""; Status.runForge(q); }
+    function wifiTrigger(w) {
+        if (!w) return; const s = drawer.escSh(w.ssid);
+        if (w.active) drawer.executeCommand("nmcli connection down '" + s + "'; sleep 0.5 && qs ipc call status refresh", false);
+        else if (w.saved || w.open) drawer.executeCommand("nmcli device wifi connect '" + s + "'; sleep 0.8 && qs ipc call status refresh", false);
+        else { drawer.wifiPassSsid = w.ssid; Status.playSfx("click"); }
+    }
+    function submitWifiPass(txt) { if (!drawer.wifiPassSsid) return; const s = drawer.escSh(drawer.wifiPassSsid), p = drawer.escSh(txt); drawer.wifiPassSsid = ""; drawer.executeCommand("nmcli device wifi connect '" + s + "' password '" + p + "'; sleep 0.9 && qs ipc call status refresh", false); }
 
-    // ================ 1. WALLPAPER GALLERY DRAWER (Personalization > Background & wallpaper) ================
+    // ================ 1. WALLPAPER PHOTO GALLERY PANEL (wp-gallery) ================
     ColumnLayout {
-        visible: drawer.activeSection === "wallpaper"; Layout.fillWidth: true; spacing: 10
-        RowLayout {
-            Layout.fillWidth: true; spacing: 14
-            Rectangle {
-                implicitWidth: 164; implicitHeight: 94; radius: 6; color: Theme.bgAlt; border.width: 2; border.color: Theme.blue; clip: true
-                Image { anchors { fill: parent; margins: 2 } source: Status.currentWallpaper ? ("file://" + Status.currentWallpaper) : ""; fillMode: Image.PreserveAspectCrop; asynchronous: true; cache: false }
-            }
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: 4
-                Text { text: "Current desktop background"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold }
-                Text { text: Status.currentWallpaper || "~/Pictures/Wallpapers"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; elide: Text.ElideMiddle; Layout.fillWidth: true }
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 8
-                    Rectangle {
-                        Layout.fillWidth: true; implicitHeight: 32; radius: 5; color: Theme.bgAlt; border.width: 1; border.color: wpCustomIn.activeFocus ? Theme.blue : Theme.border
-                        TextInput {
-                            id: wpCustomIn; anchors { fill: parent; leftMargin: 10; rightMargin: 10 } verticalAlignment: TextInput.AlignVCenter; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; clip: true
-                            Keys.onReturnPressed: if (wpCustomIn.text.trim()) { Status.setWallpaper(wpCustomIn.text.trim()); wpCustomIn.text = ""; }
-                            Text { visible: wpCustomIn.text === ""; anchors.verticalCenter: parent.verticalCenter; text: "Paste custom image path (e.g. ~/Pictures/Wallpapers/my-wall.png)..."; color: Theme.muted; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 }
-                        }
-                    }
-                    Rectangle {
-                        implicitWidth: 96; implicitHeight: 32; radius: 5; color: Theme.blue
-                        Text { anchors.centerIn: parent; text: "Apply path"; color: Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (wpCustomIn.text.trim()) { Status.setWallpaper(wpCustomIn.text.trim()); wpCustomIn.text = ""; } }
-                    }
-                }
+        visible: drawer.activeSection === "wp-gallery" || drawer.activeSection === "wallpaper"; Layout.fillWidth: true; spacing: 10
+        Rectangle {
+            Layout.fillWidth: true; implicitHeight: 108; radius: 8; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
+            RowLayout {
+                anchors { fill: parent; margins: 14 } spacing: 16
+                Rectangle { implicitWidth: 148; implicitHeight: 80; radius: 6; color: Theme.bg; border.width: 2; border.color: Theme.blue; clip: true; Image { anchors { fill: parent; margins: 2 } source: Status.currentWallpaper ? ("file://" + Status.currentWallpaper) : ""; fillMode: Image.PreserveAspectCrop; asynchronous: true; cache: false } }
+                ColumnLayout { Layout.fillWidth: true; spacing: 3; Text { text: "Active desktop wallpaper"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize + 1; font.weight: Font.DemiBold } Text { text: Status.currentWallpaper || "~/Pictures/Wallpapers"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; elide: Text.ElideMiddle; Layout.fillWidth: true } Text { text: Status.wallpaperList.length + " high-resolution backgrounds discovered  ·  Click any photo card below to apply immediately"; color: Theme.muted; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } }
+                Rectangle { implicitWidth: 122; implicitHeight: 32; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Custom path 󰅂"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsSub("wp-custom") } }
             }
         }
-        Text { text: "Choose a photo (" + Status.wallpaperList.length + " wallpapers in ~/Pictures/Wallpapers)"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.weight: Font.DemiBold }
         GridLayout {
-            Layout.fillWidth: true; columns: 4; columnSpacing: 8; rowSpacing: 8
+            Layout.fillWidth: true; columns: 3; columnSpacing: 10; rowSpacing: 10
             Repeater {
                 model: Status.wallpaperList
                 Rectangle {
                     id: wpCard; required property string modelData
                     readonly property bool isCur: Status.currentWallpaper === modelData
-                    Layout.fillWidth: true; implicitHeight: 92; radius: 6; color: Theme.bgAlt
-                    border.width: isCur ? 2 : 1; border.color: isCur ? Theme.blue : (wpCardM.containsMouse ? Theme.cyan : Theme.border); clip: true
-                    Image { anchors { fill: parent; margins: 2 } source: "file://" + wpCard.modelData; fillMode: Image.PreserveAspectCrop; asynchronous: true; sourceSize.width: 240; sourceSize.height: 135 }
+                    Layout.fillWidth: true; implicitHeight: 136; radius: 6; color: Theme.bgAlt; border.width: isCur ? 2 : 1; border.color: isCur ? Theme.blue : (wpCardM.containsMouse ? Theme.cyan : Theme.border); clip: true
+                    Image { anchors { fill: parent; margins: 2 } source: "file://" + wpCard.modelData; fillMode: Image.PreserveAspectCrop; asynchronous: true; sourceSize.width: 320; sourceSize.height: 180 }
+                    Rectangle { visible: wpCard.isCur; width: 24; height: 24; radius: 12; anchors { right: parent.right; bottom: parent.bottom; margins: 8 } color: Theme.blue; border.width: 1; border.color: Theme.bg; Text { anchors.centerIn: parent; text: "󰄬"; color: Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.bold: true } }
                     MouseArea { id: wpCardM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Status.setWallpaper(wpCard.modelData) }
                 }
             }
         }
     }
 
-    // ================ 2. THEME & OPENRGB DRAWER (Personalization > Colors & window geometry) ================
+    // ================ 2. CUSTOM WALLPAPER PATH & SCREENSAVER PANELS (wp-custom / wp-screensaver) ================
     ColumnLayout {
-        visible: drawer.activeSection === "theme"; Layout.fillWidth: true; spacing: 10
-        Text { text: "Accent color & system palette (" + Theme.themeName + ")"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.weight: Font.DemiBold }
+        visible: drawer.activeSection === "wp-custom" || drawer.activeSection === "wp-screensaver"; Layout.fillWidth: true; spacing: 8
+        Rectangle {
+            visible: drawer.activeSection === "wp-custom"; Layout.fillWidth: true; implicitHeight: 68; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
+            RowLayout {
+                anchors { fill: parent; margins: 14 } spacing: 12
+                Text { text: "󰉋"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 4 }
+                Rectangle { Layout.fillWidth: true; implicitHeight: 36; radius: 5; color: Theme.bg; border.width: 1; border.color: wpCustomIn.activeFocus ? Theme.blue : Theme.border; TextInput { id: wpCustomIn; anchors { fill: parent; leftMargin: 12; rightMargin: 12 } verticalAlignment: TextInput.AlignVCenter; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; clip: true; Keys.onReturnPressed: if (wpCustomIn.text.trim()) { Status.setWallpaper(wpCustomIn.text.trim()); wpCustomIn.text = ""; } Text { visible: wpCustomIn.text === ""; anchors.verticalCenter: parent.verticalCenter; text: "Enter image path (e.g. ~/Pictures/Wallpapers/custom.png)..."; color: Theme.muted; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } } }
+                Rectangle { implicitWidth: 112; implicitHeight: 36; radius: 5; color: Theme.blue; Text { anchors.centerIn: parent; text: "Apply image"; color: Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (wpCustomIn.text.trim()) { Status.setWallpaper(wpCustomIn.text.trim()); wpCustomIn.text = ""; } } }
+            }
+        }
+        Repeater {
+            model: drawer.activeSection === "wp-custom" ? [
+                { icon: "󰒭", l: "Next wallpaper in gallery", sub: "Cycle forward through ~/Pictures/Wallpapers", cmd: "~/.config/hypr/scripts/wallpaper.sh next && qs ipc call status refresh", cl: false },
+                { icon: "󰒮", l: "Previous wallpaper in gallery", sub: "Cycle backward through ~/Pictures/Wallpapers", cmd: "~/.config/hypr/scripts/wallpaper.sh prev && qs ipc call status refresh", cl: false },
+                { icon: "󰉋", l: "Open Wallpapers directory", sub: "Browse ~/Pictures/Wallpapers in " + Status.defFiles, cmd: "xdg-terminal-exec --files ~/Pictures/Wallpapers", cl: true }
+            ] : [
+                { icon: "󰸉", l: "Preview IdleScreen screensaver now", sub: "Launch retro pixel workstation screensaver immediately", cmd: "sleep 0.2; idlescreen start >/dev/null 2>&1 || ~/.local/bin/idlescreen start >/dev/null 2>&1", cl: true },
+                { icon: "󰒲", l: "Standard sleep (Screensaver 2m · Lock 5m · Off 10m)", sub: "Active when idleMode = poweroff", cmd: "~/.config/hypr/scripts/toggle-idle.sh poweroff && qs ipc call status refresh", cl: false, on: Status.idleMode === "poweroff" },
+                { icon: "󰌾", l: "Lock only (Lock after 5m · Keep display on)", sub: "Active when idleMode = lock", cmd: "~/.config/hypr/scripts/toggle-idle.sh lock && qs ipc call status refresh", cl: false, on: Status.idleMode === "lock" },
+                { icon: "󰅶", l: "Stay awake (Screensaver only · Never lock)", sub: "Active when idleMode = screensaver", cmd: "~/.config/hypr/scripts/toggle-idle.sh screensaver && qs ipc call status refresh", cl: false, on: Status.idleMode === "screensaver" }
+            ]
+            Rectangle {
+                id: wpSubRow; required property var modelData; Layout.fillWidth: true; implicitHeight: 62; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: modelData.on ? Theme.blue : Theme.border
+                RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 14; Text { text: wpSubRow.modelData.icon; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 3 } ColumnLayout { Layout.fillWidth: true; spacing: 2; Text { text: wpSubRow.modelData.l; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold } Text { text: wpSubRow.modelData.sub; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } } Rectangle { implicitWidth: 92; implicitHeight: 30; radius: 5; color: wpSubRow.modelData.on ? Theme.blue : Theme.bg; border.width: 1; border.color: wpSubRow.modelData.on ? Theme.blue : Theme.border; Text { anchors.centerIn: parent; text: wpSubRow.modelData.on ? "Active" : "Apply"; color: wpSubRow.modelData.on ? Theme.bg : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.executeCommand(wpSubRow.modelData.cmd, Boolean(wpSubRow.modelData.cl)) } } }
+            }
+        }
+    }
+
+    // ================ 3. THEME PALETTE, OPENRGB & GEOMETRY PANELS (thm-palette / thm-rgb / thm-geometry) ================
+    ColumnLayout {
+        visible: drawer.activeSection === "thm-palette" || drawer.activeSection === "thm-rgb" || drawer.activeSection === "thm-geometry" || drawer.activeSection === "theme"; Layout.fillWidth: true; spacing: 8
+        Rectangle {
+            visible: drawer.activeSection === "thm-rgb"; Layout.fillWidth: true; implicitHeight: 62; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
+            RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 12; Text { text: "󰌌"; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 4 } ColumnLayout { Layout.fillWidth: true; spacing: 2; Text { text: Status.rgbSupported ? (Status.rgbCount + " OpenRGB hardware controller(s) active") : "No OpenRGB controllers detected"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold } Text { text: "Active LED color: #" + Status.rgbHex + "  ·  Syncs motherboard, RAM, and peripherals"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } } Rectangle { implicitWidth: 96; implicitHeight: 30; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Turn RGB Off"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.setRgbColor("off") } } }
+        }
         GridLayout {
-            Layout.fillWidth: true; columns: 8; columnSpacing: 6; rowSpacing: 6
+            visible: drawer.activeSection === "thm-palette" || drawer.activeSection === "thm-rgb" || drawer.activeSection === "theme"; Layout.fillWidth: true; columns: 2; columnSpacing: 8; rowSpacing: 8
             Repeater {
                 model: drawer.themePresets
                 Rectangle {
-                    id: tpBtn; required property var modelData; readonly property bool isCur: Theme.theme === modelData.id
-                    Layout.fillWidth: true; implicitHeight: 34; radius: 5; color: tpM.containsMouse ? Theme.bgHover : (isCur ? Theme.blue : Theme.bgAlt); border.width: isCur ? 2 : 1; border.color: isCur ? Theme.fg : Theme.border
-                    RowLayout { anchors.centerIn: parent; spacing: 6; Rectangle { width: 10; height: 10; radius: 5; color: tpBtn.modelData.hex } Text { text: tpBtn.modelData.label; color: tpBtn.isCur ? Theme.bg : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.weight: tpBtn.isCur ? Font.DemiBold : Font.Normal } }
-                    MouseArea { id: tpM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: drawer.executeCommand("~/.local/bin/supertheme " + tpBtn.modelData.id + " || ~/.local/bin/sf theme " + tpBtn.modelData.id, false) }
-                }
-            }
-        }
-        RowLayout {
-            Layout.fillWidth: true; spacing: 8
-            Text { text: "OpenRGB hardware lighting:"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 }
-            Text { text: Status.rgbSupported ? (Status.rgbCount + " controller(s) active") : "No OpenRGB controllers detected"; color: Status.rgbSupported ? Theme.green : Theme.muted; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; Layout.fillWidth: true }
-            Repeater {
-                model: Status.rgbSupported ? drawer.themePresets.slice(0, 8) : []
-                Rectangle {
-                    required property var modelData; width: 22; height: 22; radius: 4; color: modelData.hex; border.width: 1; border.color: Theme.border
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.setRgbColor(parent.modelData.hex) }
-                }
-            }
-            Rectangle { visible: Status.rgbSupported; implicitWidth: 54; implicitHeight: 24; radius: 4; color: Theme.bgAlt; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "RGB Off"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.setRgbColor("off") } }
-        }
-    }
-
-    // ================ 3. TOP BAR ICON ORGANIZER DRAWER (Multitasking & docks > Taskbar & app dock) ================
-    ColumnLayout {
-        visible: drawer.activeSection === "shell"; Layout.fillWidth: true; spacing: 8
-        RowLayout {
-            Layout.fillWidth: true
-            Text { text: "Top bar status icons (left-click to select, right-click to hide/show)"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.weight: Font.DemiBold; Layout.fillWidth: true }
-        }
-        RowLayout {
-            Layout.fillWidth: true; spacing: 6
-            Repeater {
-                model: Status.barIcons.filter(x => x !== "|")
-                Rectangle {
-                    id: biChip; required property string modelData
-                    readonly property bool isSel: drawer.selBarIcon === modelData; readonly property bool isHid: Status.barHiddenIcons.indexOf(modelData) >= 0
-                    Layout.fillWidth: true; implicitHeight: 34; radius: 5; color: isSel ? Theme.blue : (biM.containsMouse ? Theme.bgHover : Theme.bgAlt)
-                    border.width: 1; border.color: isSel ? Theme.blue : Theme.border; opacity: isHid ? 0.5 : 1.0
-                    Text { anchors.centerIn: parent; text: (biChip.isHid ? "󰈉 " : "") + (drawer.barIconLabels[biChip.modelData] || biChip.modelData); color: biChip.isSel ? Theme.bg : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: biChip.isSel ? Font.DemiBold : Font.Normal }
-                    MouseArea { id: biM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; acceptedButtons: Qt.LeftButton | Qt.RightButton; onClicked: e => { drawer.selBarIcon = biChip.modelData; if (e.button === Qt.RightButton) Status.toggleBarIconHidden(biChip.modelData); else Status.playSfx("click"); } }
-                }
-            }
-        }
-        RowLayout {
-            Layout.fillWidth: true; spacing: 6
-            Repeater {
-                model: [ { act: "left", l: "◀ Move left" }, { act: "right", l: "Move right ▶" }, { act: "hide", l: Status.barHiddenIcons.indexOf(drawer.selBarIcon) >= 0 ? "Show icon" : "Hide icon" }, { act: "div", l: Status.barIcons.indexOf("|") >= 0 ? "Dividers: On" : "Dividers: Off" }, { act: "reset", l: "Reset default order" } ]
-                Rectangle {
-                    id: biAct; required property var modelData; Layout.fillWidth: true; implicitHeight: 30; radius: 5; color: biActM.containsMouse ? Theme.bgHover : Theme.bgAlt; border.width: 1; border.color: Theme.border
-                    Text { anchors.centerIn: parent; text: biAct.modelData.l; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 }
-                    MouseArea { id: biActM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { const a = biAct.modelData.act; if (a === "left") Status.moveBarIcon(drawer.selBarIcon, -1); else if (a === "right") Status.moveBarIcon(drawer.selBarIcon, 1); else if (a === "hide") Status.toggleBarIconHidden(drawer.selBarIcon); else if (a === "div") Status.toggleBarDividers(); else Status.resetBarIcons(); } }
-                }
-            }
-        }
-    }
-
-    // ================ 4. SUPERFORGE & STARTUP APPS DRAWER (Apps & Forge > Default apps & SuperForge) ================
-    ColumnLayout {
-        visible: drawer.activeSection === "forge"; Layout.fillWidth: true; spacing: 8
-        RowLayout {
-            Layout.fillWidth: true; spacing: 8
-            Text { text: "SuperForge native compiler & chromeless Firefox WebApp builder"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.weight: Font.DemiBold; Layout.fillWidth: true }
-            Rectangle {
-                implicitWidth: 196; implicitHeight: 26; radius: 5; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
-                Text { anchors.centerIn: parent; text: Status.forgeIsolated ? "Profile: Isolated sandbox" : "Profile: Shared Firefox"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { Status.forgeIsolated = !Status.forgeIsolated; Status.playSfx("toggle"); } }
-            }
-        }
-        RowLayout {
-            Layout.fillWidth: true; spacing: 6
-            Rectangle {
-                Layout.fillWidth: true; implicitHeight: 34; radius: 5; color: Theme.bgAlt; border.width: 1; border.color: forgeInput.activeFocus ? Theme.blue : Theme.border
-                TextInput {
-                    id: forgeInput; anchors { fill: parent; leftMargin: 10; rightMargin: 10 } verticalAlignment: TextInput.AlignVCenter; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; clip: true
-                    Keys.onReturnPressed: drawer.runForge(forgeInput.text)
-                    Text { visible: forgeInput.text === ""; anchors.verticalCenter: parent.verticalCenter; text: "Enter URL (https://claude.ai) or recipe/repo (yazi, btop, owner/repo)..."; color: Theme.muted; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 }
-                }
-            }
-            Rectangle {
-                implicitWidth: 124; implicitHeight: 34; radius: 5; color: Status.forgeBusy ? Theme.red : Theme.blue
-                Text { anchors.centerIn: parent; text: Status.forgeBusy ? ("Stop (" + Status.forgePct + "%)") : "Forge & install"; color: Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (Status.forgeBusy) Status.stopForge(); else drawer.runForge(forgeInput.text); } }
-            }
-            Rectangle {
-                implicitWidth: 104; implicitHeight: 34; radius: 5; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
-                Text { anchors.centerIn: parent; text: "Update all"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.runForge("update") }
-            }
-        }
-        RowLayout {
-            Layout.fillWidth: true; spacing: 6
-            Repeater {
-                model: ["https://claude.ai", "https://chatgpt.com", "https://github.com", "yazi", "btop", "fastfetch"]
-                Rectangle {
-                    id: qfBtn; required property string modelData; Layout.fillWidth: true; implicitHeight: 26; radius: 4; color: qfM.containsMouse ? Theme.bgHover : Theme.bgAlt; border.width: 1; border.color: Theme.border
-                    Text { anchors.centerIn: parent; text: "+ " + qfBtn.modelData.replace(/^https:\/\//, ""); color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 }
-                    MouseArea { id: qfM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: drawer.runForge(qfBtn.modelData) }
+                    id: tpBtn; required property var modelData; readonly property bool isRgb: drawer.activeSection === "thm-rgb"; readonly property bool isCur: !isRgb && Theme.theme === modelData.id
+                    Layout.fillWidth: true; implicitHeight: 54; radius: 6; color: tpM.containsMouse ? Theme.bgHover : Theme.bgAlt; border.width: isCur ? 2 : 1; border.color: isCur ? Theme.blue : Theme.border
+                    RowLayout { anchors { fill: parent; leftMargin: 14; rightMargin: 14 } spacing: 12; Rectangle { width: 22; height: 22; radius: 11; color: tpBtn.modelData.hex; border.width: 1; border.color: Theme.border } ColumnLayout { Layout.fillWidth: true; spacing: 1; Text { text: tpBtn.modelData.label + (tpBtn.isRgb ? " LED" : ""); color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold } Text { text: tpBtn.modelData.hex + "  ·  " + tpBtn.modelData.id; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } } Rectangle { implicitWidth: 74; implicitHeight: 26; radius: 4; color: tpBtn.isCur ? Theme.blue : Theme.bg; border.width: 1; border.color: tpBtn.isCur ? Theme.blue : Theme.border; Text { anchors.centerIn: parent; text: tpBtn.isCur ? "Active" : (tpBtn.isRgb ? "Set LED" : "Apply"); color: tpBtn.isCur ? Theme.bg : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.weight: Font.DemiBold } } }
+                    MouseArea { id: tpM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (tpBtn.isRgb) Status.setRgbColor(tpBtn.modelData.hex); else drawer.executeCommand("~/.local/bin/supertheme " + tpBtn.modelData.id + " || ~/.local/bin/sf theme " + tpBtn.modelData.id, false); } }
                 }
             }
         }
         Repeater {
-            model: Status.forgedWebApps
+            model: drawer.activeSection === "thm-geometry" ? [
+                { l: "Dark mode (Night palette)", sub: "Deep low-glare surfaces for dark environments", cmd: "~/.local/bin/supertheme night || ~/.local/bin/sf theme night", on: Theme.mode === "dark" },
+                { l: "Light mode (Daylight palette)", sub: "High-contrast daylight surfaces", cmd: "~/.local/bin/supertheme day || ~/.local/bin/sf theme day", on: Theme.mode === "light" },
+                { l: "Rounded window & panel corners", sub: "Modern WinUI 3 / Fluent rounded geometry", cmd: "~/.local/bin/supertheme corners rounded || ~/.local/bin/sf theme corners rounded", on: Theme.corners === "rounded" },
+                { l: "Square window & panel corners", sub: "Crisp zero-radius technical geometry", cmd: "~/.local/bin/supertheme corners square || ~/.local/bin/sf theme corners square", on: Theme.corners === "square" }
+            ] : []
             Rectangle {
-                id: fwCard; required property var modelData; Layout.fillWidth: true; implicitHeight: 32; radius: 5; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
-                RowLayout {
-                    anchors { fill: parent; leftMargin: 10; rightMargin: 8 } spacing: 8
-                    Text { text: "󰖟  " + fwCard.modelData.name + "  ·  " + (fwCard.modelData.url || fwCard.modelData.mode); color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; Layout.fillWidth: true; elide: Text.ElideRight }
-                    Rectangle { implicitWidth: 64; implicitHeight: 24; radius: 4; color: Theme.blue; Text { anchors.centerIn: parent; text: "Launch"; color: Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.executeCommand("'" + fwCard.modelData.bin + "'", true) } }
-                    Rectangle { implicitWidth: 64; implicitHeight: 24; radius: 4; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Remove"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.removeForge(fwCard.modelData.slug) } }
-                }
+                id: gmRow; required property var modelData; Layout.fillWidth: true; implicitHeight: 62; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: modelData.on ? Theme.blue : Theme.border
+                RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 14; ColumnLayout { Layout.fillWidth: true; spacing: 2; Text { text: gmRow.modelData.l; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold } Text { text: gmRow.modelData.sub; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } } Rectangle { implicitWidth: 88; implicitHeight: 30; radius: 5; color: gmRow.modelData.on ? Theme.blue : Theme.bg; border.width: 1; border.color: gmRow.modelData.on ? Theme.blue : Theme.border; Text { anchors.centerIn: parent; text: gmRow.modelData.on ? "Active" : "Apply"; color: gmRow.modelData.on ? Theme.bg : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.executeCommand(gmRow.modelData.cmd, false) } } }
             }
-        }
-        Text { text: "Startup applications (~/.config/hypr/conf/autostart.conf)"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.weight: Font.DemiBold; Layout.topMargin: 4 }
-        Repeater {
-            model: Status.startupApps
-            Rectangle {
-                id: stRow; required property string modelData; Layout.fillWidth: true; implicitHeight: 30; radius: 5; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
-                RowLayout {
-                    anchors { fill: parent; leftMargin: 10; rightMargin: 8 } spacing: 8
-                    Text { text: "󰀻  " + stRow.modelData; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; Layout.fillWidth: true; elide: Text.ElideRight }
-                    Rectangle { implicitWidth: 64; implicitHeight: 22; radius: 4; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Remove"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.removeStartupApp(stRow.modelData) } }
-                }
-            }
-        }
-        RowLayout {
-            Layout.fillWidth: true; spacing: 6
-            Rectangle {
-                Layout.fillWidth: true; implicitHeight: 32; radius: 5; color: Theme.bgAlt; border.width: 1; border.color: startupIn.activeFocus ? Theme.blue : Theme.border
-                TextInput {
-                    id: startupIn; anchors { fill: parent; leftMargin: 10; rightMargin: 10 } verticalAlignment: TextInput.AlignVCenter; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; clip: true
-                    Keys.onReturnPressed: if (startupIn.text.trim()) { Status.addStartupApp(startupIn.text.trim()); startupIn.text = ""; }
-                    Text { visible: startupIn.text === ""; anchors.verticalCenter: parent.verticalCenter; text: "Add startup command (e.g. discord, synology-drive)..."; color: Theme.muted; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 }
-                }
-            }
-            Rectangle { implicitWidth: 112; implicitHeight: 32; radius: 5; color: Theme.blue; Text { anchors.centerIn: parent; text: "Add startup app"; color: Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (startupIn.text.trim()) { Status.addStartupApp(startupIn.text.trim()); startupIn.text = ""; } } }
         }
     }
 
-    // ================ 5. STORAGE, HARDWARE SPECS & TOP PROCESSES DRAWER (System > Storage) ================
+    // ================ 4. TOP BAR ICONS & DOCK SUB-PANELS (shl-bar / shl-dock) ================
     ColumnLayout {
-        visible: drawer.activeSection === "storage"; Layout.fillWidth: true; spacing: 8
-        Text { text: "Hardware specifications & active processes"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.weight: Font.DemiBold }
-        GridLayout {
-            Layout.fillWidth: true; columns: 2; columnSpacing: 8; rowSpacing: 4
-            Repeater {
-                model: Status.fastfetchList
-                Rectangle {
-                    required property var modelData; Layout.fillWidth: true; implicitHeight: 28; radius: 4; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
-                    RowLayout { anchors { fill: parent; leftMargin: 10; rightMargin: 10 } spacing: 6; Text { text: parent.parent.modelData.k + ":"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.weight: Font.DemiBold } Text { text: parent.parent.modelData.v; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; elide: Text.ElideRight; Layout.fillWidth: true } }
-                }
+        visible: drawer.activeSection === "shl-bar" || drawer.activeSection === "shl-dock" || drawer.activeSection === "shell"; Layout.fillWidth: true; spacing: 8
+        Rectangle {
+            visible: drawer.activeSection === "shl-bar" || drawer.activeSection === "shell"; Layout.fillWidth: true; implicitHeight: 58; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
+            RowLayout {
+                anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 10
+                Text { text: "Top bar pill dividers & default layout"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold; Layout.fillWidth: true }
+                Rectangle { implicitWidth: 112; implicitHeight: 30; radius: 5; color: Status.barIcons.indexOf("|") >= 0 ? Theme.blue : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: Status.barIcons.indexOf("|") >= 0 ? "Dividers: On" : "Dividers: Off"; color: Status.barIcons.indexOf("|") >= 0 ? Theme.bg : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.toggleBarDividers() } }
+                Rectangle { implicitWidth: 116; implicitHeight: 30; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Reset default"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.resetBarIcons() } }
             }
         }
         Repeater {
-            model: Status.topProcs.slice(0, 5)
+            model: (drawer.activeSection === "shl-bar" || drawer.activeSection === "shell") ? Status.barIcons.filter(x => x !== "|") : []
             Rectangle {
-                id: prRow; required property var modelData; Layout.fillWidth: true; implicitHeight: 26; radius: 4; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
-                RowLayout { anchors { fill: parent; leftMargin: 10; rightMargin: 10 } spacing: 10; Text { text: "PID " + prRow.modelData.pid + "  ·  " + prRow.modelData.cmd; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; Layout.fillWidth: true; elide: Text.ElideRight } Text { text: "CPU " + prRow.modelData.cpu + "%  ·  MEM " + prRow.modelData.mem + "%"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } }
+                id: biRow; required property string modelData; readonly property bool isHid: Status.barHiddenIcons.indexOf(modelData) >= 0
+                Layout.fillWidth: true; implicitHeight: 56; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border; opacity: isHid ? 0.65 : 1.0
+                RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 10; Text { text: drawer.barIconLabels[biRow.modelData] || biRow.modelData; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold; Layout.fillWidth: true } Rectangle { implicitWidth: 74; implicitHeight: 28; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "◀ Left"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.moveBarIcon(biRow.modelData, -1) } } Rectangle { implicitWidth: 74; implicitHeight: 28; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Right ▶"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.moveBarIcon(biRow.modelData, 1) } } Rectangle { implicitWidth: 86; implicitHeight: 28; radius: 5; color: biRow.isHid ? Theme.bg : Theme.blue; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: biRow.isHid ? "Hidden" : "Visible"; color: biRow.isHid ? Theme.fgDim : Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.toggleBarIconHidden(biRow.modelData) } } }
+            }
+        }
+        Repeater {
+            model: drawer.activeSection === "shl-dock" ? (drawer.parentItem && drawer.parentItem.acts ? drawer.parentItem.acts : []) : []
+            Rectangle {
+                id: dkRow; required property var modelData; Layout.fillWidth: true; implicitHeight: 58; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: modelData.on ? Theme.blue : Theme.border
+                RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 14; Text { text: "App Dock: " + dkRow.modelData.l; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold; Layout.fillWidth: true } Rectangle { implicitWidth: 88; implicitHeight: 30; radius: 5; color: dkRow.modelData.on ? Theme.blue : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: dkRow.modelData.on ? "Active" : "Apply"; color: dkRow.modelData.on ? Theme.bg : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.triggerSettingAction(dkRow.modelData) } } }
+            }
+        }
+    }
+
+    // ================ 5. SUPERFORGE, WEBAPPS & STARTUP SUB-PANELS (frg-build / frg-webapps / frg-startup) ================
+    ColumnLayout {
+        visible: drawer.activeSection.startsWith("frg-") || drawer.activeSection === "forge"; Layout.fillWidth: true; spacing: 8
+        Rectangle {
+            visible: drawer.activeSection === "frg-build" || drawer.activeSection === "forge"; Layout.fillWidth: true; implicitHeight: 104; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
+            ColumnLayout {
+                anchors { fill: parent; margins: 14 } spacing: 8
+                RowLayout { Layout.fillWidth: true; Text { text: "SuperForge native -O3 compiler & Firefox WebApp builder"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold; Layout.fillWidth: true } Rectangle { implicitWidth: 196; implicitHeight: 28; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: Status.forgeIsolated ? "Profile: Isolated sandbox" : "Profile: Shared Firefox"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { Status.forgeIsolated = !Status.forgeIsolated; Status.playSfx("toggle"); } } } }
+                RowLayout { Layout.fillWidth: true; spacing: 8; Rectangle { Layout.fillWidth: true; implicitHeight: 34; radius: 5; color: Theme.bg; border.width: 1; border.color: forgeInput.activeFocus ? Theme.blue : Theme.border; TextInput { id: forgeInput; anchors { fill: parent; leftMargin: 10; rightMargin: 10 } verticalAlignment: TextInput.AlignVCenter; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; clip: true; Keys.onReturnPressed: drawer.runForge(forgeInput.text); Text { visible: forgeInput.text === ""; anchors.verticalCenter: parent.verticalCenter; text: "Enter URL (https://claude.ai) or recipe (yazi, btop, owner/repo)..."; color: Theme.muted; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } } } Rectangle { implicitWidth: 122; implicitHeight: 34; radius: 5; color: Status.forgeBusy ? Theme.red : Theme.blue; Text { anchors.centerIn: parent; text: Status.forgeBusy ? ("Stop (" + Status.forgePct + "%)") : "Forge & install"; color: Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (Status.forgeBusy) Status.stopForge(); else drawer.runForge(forgeInput.text); } } } Rectangle { implicitWidth: 96; implicitHeight: 34; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Update all"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.runForge("update") } } }
+            }
+        }
+        Repeater {
+            model: drawer.activeSection === "frg-build" ? ["https://claude.ai", "https://chatgpt.com", "https://github.com", "yazi", "btop", "fastfetch"] : []
+            Rectangle { id: qfRow; required property string modelData; Layout.fillWidth: true; implicitHeight: 52; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border; RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 12; Text { text: "󰀻  " + qfRow.modelData; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold; Layout.fillWidth: true } Rectangle { implicitWidth: 96; implicitHeight: 28; radius: 5; color: Theme.blue; Text { anchors.centerIn: parent; text: "Forge target"; color: Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.runForge(qfRow.modelData) } } } }
+        }
+        Repeater {
+            model: (drawer.activeSection === "frg-webapps" || drawer.activeSection === "forge") ? Status.forgedWebApps : []
+            Rectangle { id: fwCard; required property var modelData; Layout.fillWidth: true; implicitHeight: 56; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border; RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 10; ColumnLayout { Layout.fillWidth: true; spacing: 2; Text { text: "󰖟  " + fwCard.modelData.name; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold } Text { text: (fwCard.modelData.url || "") + "  ·  Profile: " + fwCard.modelData.mode; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; elide: Text.ElideRight; Layout.fillWidth: true } } Rectangle { implicitWidth: 82; implicitHeight: 28; radius: 5; color: Theme.blue; Text { anchors.centerIn: parent; text: "Launch"; color: Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.executeCommand("'" + fwCard.modelData.bin + "'", true) } } Rectangle { implicitWidth: 82; implicitHeight: 28; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Remove"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.removeForge(fwCard.modelData.slug) } } } }
+        }
+        Rectangle {
+            visible: drawer.activeSection === "frg-startup"; Layout.fillWidth: true; implicitHeight: 62; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
+            RowLayout { anchors { fill: parent; margins: 14 } spacing: 8; Rectangle { Layout.fillWidth: true; implicitHeight: 34; radius: 5; color: Theme.bg; border.width: 1; border.color: startupIn.activeFocus ? Theme.blue : Theme.border; TextInput { id: startupIn; anchors { fill: parent; leftMargin: 10; rightMargin: 10 } verticalAlignment: TextInput.AlignVCenter; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; clip: true; Keys.onReturnPressed: if (startupIn.text.trim()) { Status.addStartupApp(startupIn.text.trim()); startupIn.text = ""; } Text { visible: startupIn.text === ""; anchors.verticalCenter: parent.verticalCenter; text: "Add exec-once startup command (e.g. discord, synology-drive)..."; color: Theme.muted; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } } } Rectangle { implicitWidth: 118; implicitHeight: 34; radius: 5; color: Theme.blue; Text { anchors.centerIn: parent; text: "Add startup app"; color: Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (startupIn.text.trim()) { Status.addStartupApp(startupIn.text.trim()); startupIn.text = ""; } } } }
+        }
+        Repeater {
+            model: drawer.activeSection === "frg-startup" ? Status.startupApps : []
+            Rectangle { id: stRow; required property string modelData; Layout.fillWidth: true; implicitHeight: 52; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border; RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 10; Text { text: "exec-once = " + stRow.modelData; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; Layout.fillWidth: true; elide: Text.ElideRight } Rectangle { implicitWidth: 82; implicitHeight: 28; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Remove"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.removeStartupApp(stRow.modelData) } } } }
+        }
+    }
+
+    // ================ 6. STORAGE SPECS, PROCESSES, AUDIO, BT, WIFI & AI SUB-PANELS ================
+    Repeater { model: drawer.activeSection === "stg-specs" ? Status.fastfetchList : (drawer.activeSection === "wifi-hw" ? [ { k: "Network adapter", v: Status.netIface + "  (" + (Status.wifiEnabled ? "802.11 Wi-Fi" : "Radio off") + ")" }, { k: "SSID & signal", v: (Status.ssid || "Not connected") + (Status.ssid ? ("  ·  " + Status.signal + "%") : "") }, { k: "IPv4 address", v: Status.netIpv4 }, { k: "Default gateway", v: Status.netGateway }, { k: "DNS servers", v: Status.netDns }, { k: "Firewall & VPN", v: "firewalld: " + Status.firewallState + "  ·  Tunnel: " + Status.vpnState }, { k: "Live throughput", v: "Rx " + Math.round(Status.netRxKbps) + " KB/s  ·  Tx " + Math.round(Status.netTxKbps) + " KB/s" } ] : []); Rectangle { id: spRow; required property var modelData; Layout.fillWidth: true; implicitHeight: 52; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border; RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 12; Text { text: spRow.modelData.k; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold; Layout.preferredWidth: 148 } Text { text: spRow.modelData.v; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; Layout.fillWidth: true; elide: Text.ElideRight } } } }
+    Repeater { model: drawer.activeSection === "stg-procs" ? Status.topProcs : []; Rectangle { id: prRow; required property var modelData; Layout.fillWidth: true; implicitHeight: 54; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border; RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 12; Text { text: prRow.modelData.cmd; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight } Text { text: "PID " + prRow.modelData.pid + "  ·  CPU " + prRow.modelData.cpu + "%  ·  MEM " + prRow.modelData.mem + "%"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } } } }
+    Repeater { model: drawer.activeSection === "snd-sinks" ? Status.audioSinks : (drawer.activeSection === "snd-sources" ? Status.audioSources : []); Rectangle { id: aDev; required property var modelData; Layout.fillWidth: true; implicitHeight: 58; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: modelData.active ? Theme.blue : Theme.border; RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 12; ColumnLayout { Layout.fillWidth: true; spacing: 2; Text { text: aDev.modelData.name; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold } Text { text: "PipeWire node ID " + aDev.modelData.id + (aDev.modelData.active ? "  ·  Default active device" : ""); color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } } Rectangle { implicitWidth: 108; implicitHeight: 30; radius: 5; color: aDev.modelData.active ? Theme.blue : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: aDev.modelData.active ? "Default" : "Set default"; color: aDev.modelData.active ? Theme.bg : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.setAudioDefault(aDev.modelData.id) } } } } }
+    Rectangle { visible: drawer.activeSection === "bt-devices" && drawer.btList.length === 0; Layout.fillWidth: true; implicitHeight: 58; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "No Bluetooth accessories paired yet. Use Scan nearby on the Bluetooth panel."; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1 } }
+    Repeater { model: drawer.activeSection === "bt-devices" ? drawer.btList : []; Rectangle { id: btItem; required property var modelData; Layout.fillWidth: true; implicitHeight: 58; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: modelData.connected ? Theme.blue : Theme.border; RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 10; ColumnLayout { Layout.fillWidth: true; spacing: 2; Text { text: "󰂯  " + (btItem.modelData.name || "Accessory"); color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold } Text { text: btItem.modelData.address + (btItem.modelData.connected ? "  ·  Connected" : "  ·  Paired"); color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } } Rectangle { implicitWidth: 96; implicitHeight: 28; radius: 5; color: btItem.modelData.connected ? Theme.bg : Theme.blue; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: btItem.modelData.connected ? "Disconnect" : "Connect"; color: btItem.modelData.connected ? Theme.fg : Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.executeCommand(btItem.modelData.connected ? ("bluetoothctl disconnect " + btItem.modelData.address) : ("bluetoothctl connect " + btItem.modelData.address), false) } } Rectangle { visible: btItem.modelData.paired; implicitWidth: 78; implicitHeight: 28; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Remove"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.executeCommand("bluetoothctl remove " + btItem.modelData.address, false) } } } } }
+    Rectangle { visible: drawer.activeSection === "wifi-networks" && drawer.wifiPassSsid !== ""; Layout.fillWidth: true; implicitHeight: 62; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.blue; RowLayout { anchors { fill: parent; margins: 14 } spacing: 10; Text { text: "Password for " + drawer.wifiPassSsid + ":"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1 } Rectangle { Layout.fillWidth: true; implicitHeight: 32; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.blue; TextInput { id: wifiPassIn; anchors { fill: parent; leftMargin: 10; rightMargin: 10 } verticalAlignment: TextInput.AlignVCenter; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; echoMode: TextInput.Password; clip: true; Keys.onReturnPressed: { drawer.submitWifiPass(wifiPassIn.text); wifiPassIn.text = ""; } } } Rectangle { implicitWidth: 92; implicitHeight: 32; radius: 5; color: Theme.blue; Text { anchors.centerIn: parent; text: "Connect"; color: Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { drawer.submitWifiPass(wifiPassIn.text); wifiPassIn.text = ""; } } } } }
+    Repeater { model: drawer.activeSection === "wifi-networks" ? Status.wifiList : []; Rectangle { id: wRow; required property var modelData; Layout.fillWidth: true; implicitHeight: 58; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: modelData.active ? Theme.blue : Theme.border; RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 12; ColumnLayout { Layout.fillWidth: true; spacing: 2; Text { text: "󰤨  " + wRow.modelData.ssid; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold } Text { text: wRow.modelData.security + "  ·  Signal " + wRow.modelData.signal + "%" + (wRow.modelData.saved ? "  ·  Saved profile" : ""); color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } } Rectangle { implicitWidth: 96; implicitHeight: 30; radius: 5; color: wRow.modelData.active ? Theme.bg : Theme.blue; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: wRow.modelData.active ? "Disconnect" : "Connect"; color: wRow.modelData.active ? Theme.fg : Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.wifiTrigger(wRow.modelData) } } } } }
+    Repeater { model: drawer.activeSection === "wifi-saved" ? Status.savedWifiList : []; Rectangle { id: svRow; required property string modelData; Layout.fillWidth: true; implicitHeight: 54; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border; RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 10; Text { text: "󰒃  " + svRow.modelData; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold; Layout.fillWidth: true } Rectangle { implicitWidth: 88; implicitHeight: 28; radius: 5; color: Theme.blue; Text { anchors.centerIn: parent; text: "Connect"; color: Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.executeCommand("nmcli connection up '" + drawer.escSh(svRow.modelData) + "'; sleep 0.6 && qs ipc call status refresh", false) } } Rectangle { implicitWidth: 82; implicitHeight: 28; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Forget"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.executeCommand("nmcli connection delete '" + drawer.escSh(svRow.modelData) + "' && qs ipc call status refresh", false) } } } } }
+    Rectangle {
+        visible: drawer.activeSection === "ai-nodes" || drawer.activeSection === "ai-agents"; Layout.fillWidth: true; implicitHeight: 62; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
+        RowLayout { anchors { fill: parent; margins: 14 } spacing: 8; Rectangle { Layout.fillWidth: true; implicitHeight: 34; radius: 5; color: Theme.bg; border.width: 1; border.color: aiIn1.activeFocus ? Theme.blue : Theme.border; TextInput { id: aiIn1; anchors { fill: parent; leftMargin: 10; rightMargin: 10 } verticalAlignment: TextInput.AlignVCenter; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; clip: true; Text { visible: aiIn1.text === ""; anchors.verticalCenter: parent.verticalCenter; text: drawer.activeSection === "ai-nodes" ? "Host:Port (e.g. 10.0.0.50:11434)" : "Harness label (e.g. Aider)"; color: Theme.muted; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } } } Rectangle { Layout.fillWidth: true; implicitHeight: 34; radius: 5; color: Theme.bg; border.width: 1; border.color: aiIn2.activeFocus ? Theme.blue : Theme.border; TextInput { id: aiIn2; anchors { fill: parent; leftMargin: 10; rightMargin: 10 } verticalAlignment: TextInput.AlignVCenter; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; clip: true; Text { visible: aiIn2.text === ""; anchors.verticalCenter: parent.verticalCenter; text: drawer.activeSection === "ai-nodes" ? "Model ID (e.g. qwen3-coder)" : "CLI command (e.g. aider)"; color: Theme.muted; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } } } Rectangle { implicitWidth: 104; implicitHeight: 34; radius: 5; color: Theme.blue; Text { anchors.centerIn: parent; text: drawer.activeSection === "ai-nodes" ? "Add node" : "Add harness"; color: Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (aiIn1.text.trim()) { if (drawer.activeSection === "ai-nodes") Status.saveLlmServer(aiIn1.text.trim(), aiIn1.text.trim(), "ollama", aiIn2.text.trim() || "llama3.2"); else Status.addCustomHarness(aiIn1.text.trim().toLowerCase().replace(/[^a-z0-9_-]/g, ""), aiIn1.text.trim(), aiIn2.text.trim() || aiIn1.text.trim()); aiIn1.text = ""; aiIn2.text = ""; } } } }
+    }
+    Repeater { model: drawer.activeSection === "ai-nodes" ? Status.llmServers : (drawer.activeSection === "ai-agents" ? Status.aiHarnesses : []); Rectangle { id: aiRow; required property var modelData; Layout.fillWidth: true; implicitHeight: 58; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: modelData.active ? Theme.blue : Theme.border; RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 10; ColumnLayout { Layout.fillWidth: true; spacing: 2; Text { text: drawer.activeSection === "ai-nodes" ? (aiRow.modelData.name + "  (" + aiRow.modelData.model + ")") : aiRow.modelData.label; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: Font.DemiBold } Text { text: drawer.activeSection === "ai-nodes" ? ("Endpoint: http://" + aiRow.modelData.host) : ("Command: " + aiRow.modelData.cmd + "  ·  ID: " + aiRow.modelData.id); color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } } Rectangle { implicitWidth: 96; implicitHeight: 30; radius: 5; color: aiRow.modelData.active ? Theme.blue : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: aiRow.modelData.active ? "Active" : "Select"; color: aiRow.modelData.active ? Theme.bg : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (drawer.activeSection === "ai-nodes") Status.connectLlmServer(aiRow.modelData.host, aiRow.modelData.model); else Status.selectAiAgent(aiRow.modelData.id); } } } Rectangle { visible: drawer.activeSection === "ai-nodes" || aiRow.modelData.cat === "custom"; implicitWidth: 78; implicitHeight: 30; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Remove"; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { if (drawer.activeSection === "ai-nodes") Status.removeLlmServer(aiRow.modelData.host); else Status.removeCustomHarness(aiRow.modelData.id); } } } } } }
+
+    // ================ 6B. WINDOWS 11 FILE EXTENSIONS & LINK PROTOCOLS SUB-PANEL (ext-*) ================
+    Rectangle {
+        visible: drawer.inExtPanel; Layout.fillWidth: true; implicitHeight: 62; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
+        RowLayout { anchors { fill: parent; margins: 14 } spacing: 8; Rectangle { Layout.fillWidth: true; implicitHeight: 34; radius: 5; color: Theme.bg; border.width: 1; border.color: extSearchIn.activeFocus ? Theme.blue : Theme.border; TextInput { id: extSearchIn; anchors { fill: parent; leftMargin: 10; rightMargin: 10 } verticalAlignment: TextInput.AlignVCenter; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; clip: true; onTextChanged: drawer.extFilter = text; Text { visible: extSearchIn.text === ""; anchors.verticalCenter: parent.verticalCenter; text: "Filter by file extension (.pdf, .mp4, .png, .rs, .zip) or link protocol (https://, mailto:, magnet:)..."; color: Theme.muted; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } } } Repeater { model: [ { id: "ext-all", l: "All" }, { id: "ext-web", l: "Web" }, { id: "ext-docs", l: "Docs" }, { id: "ext-media", l: "Media" }, { id: "ext-code", l: "Code & Zip" } ]; Rectangle { id: ecBtn; required property var modelData; readonly property bool on: drawer.activeSection === modelData.id || (drawer.activeSection === "mime-exts" && modelData.id === "ext-all"); implicitWidth: ecTxt.implicitWidth + 18; implicitHeight: 32; radius: 5; color: on ? Theme.blue : Theme.bg; border.width: 1; border.color: on ? Theme.blue : Theme.border; Text { id: ecTxt; anchors.centerIn: parent; text: ecBtn.modelData.l; color: ecBtn.on ? Theme.bg : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.weight: ecBtn.on ? Font.DemiBold : Font.Normal } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Status.openSettingsSub(ecBtn.modelData.id) } } } Rectangle { implicitWidth: 112; implicitHeight: 32; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: "Reset defaults"; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.executeCommand("~/.local/bin/xdg-terminal-exec --reset && qs ipc call status refresh", false) } } }
+    }
+    Repeater {
+        model: drawer.inExtPanel ? Status.mimeExtensions.filter(it => drawer.matchExt(it)) : []
+        Rectangle {
+            id: extRow; required property var modelData; Layout.fillWidth: true; implicitHeight: 62; radius: 6; color: Theme.bgAlt; border.width: 1; border.color: Theme.border
+            RowLayout { anchors { fill: parent; leftMargin: 16; rightMargin: 14 } spacing: 12; Rectangle { implicitWidth: 84; implicitHeight: 34; radius: 5; color: Theme.bg; border.width: 1; border.color: Theme.blue; Text { anchors.centerIn: parent; text: extRow.modelData.ext; color: Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.weight: Font.DemiBold } } ColumnLayout { Layout.fillWidth: true; spacing: 2; Text { text: extRow.modelData.grp + "  ·  Default: " + String(extRow.modelData.cur || "").toUpperCase(); color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true } Text { text: "XDG MIME: " + extRow.modelData.mime; color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; elide: Text.ElideRight; Layout.fillWidth: true } } RowLayout { spacing: 5; Repeater { model: extRow.modelData.opts || []; Rectangle { id: extOpt; required property string modelData; readonly property bool isCur: String(extRow.modelData.cur || "") === modelData || String(extRow.modelData.cur || "").indexOf(modelData) === 0; readonly property bool isIns: Status.installedDefaultApps.indexOf(modelData) >= 0; implicitWidth: Math.max(58, eoTxt.implicitWidth + 16); implicitHeight: 28; radius: 5; color: isCur ? Theme.blue : (eoM.containsMouse ? Theme.bgHover : Theme.bg); border.width: 1; border.color: isCur ? Theme.blue : (isIns ? Theme.muted : Theme.border); opacity: (isCur || isIns || eoM.containsMouse) ? 1.0 : 0.72; Text { id: eoTxt; anchors.centerIn: parent; text: (extOpt.isCur ? "󰄬 " : (extOpt.isIns ? "● " : "")) + extOpt.modelData; color: extOpt.isCur ? Theme.bg : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; font.weight: extOpt.isCur ? Font.DemiBold : Font.Normal } MouseArea { id: eoM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: drawer.executeCommand("~/.local/bin/xdg-terminal-exec --set-ext '" + drawer.escSh(extRow.modelData.ext) + "' '" + drawer.escSh(extOpt.modelData) + "' && qs ipc call status refresh", false) } } } } }
+        }
+    }
+
+    // ================ 7. LEVEL-3 DEDICATED OPTION DETAIL PANEL (act-<N>) ================
+    ColumnLayout {
+        visible: drawer.curAct !== null; Layout.fillWidth: true; spacing: 10
+        Rectangle {
+            Layout.fillWidth: true; implicitHeight: 108; radius: 8; color: Theme.bgAlt; border.width: 1.5; border.color: (drawer.curAct && drawer.curAct.on) ? Theme.blue : Theme.border
+            RowLayout {
+                anchors { fill: parent; margins: 18 } spacing: 16
+                Rectangle { implicitWidth: 48; implicitHeight: 48; radius: 8; color: (drawer.curAct && drawer.curAct.on) ? Theme.blue : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: (drawer.curAct && drawer.curAct.on) ? "󰄬" : (drawer.parentItem ? drawer.parentItem.icon : "󰒓"); color: (drawer.curAct && drawer.curAct.on) ? Theme.bg : Theme.blue; font.family: Theme.font; font.pixelSize: Theme.fontSize + 6 } }
+                ColumnLayout { Layout.fillWidth: true; spacing: 3; Text { text: drawer.curAct ? drawer.curAct.l : ""; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize + 3; font.weight: Font.DemiBold } Text { text: "Parent setting: " + (drawer.parentItem ? drawer.parentItem.title : ""); color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1 } Text { text: "Target action: " + String((drawer.curAct && (drawer.curAct.v !== undefined ? drawer.curAct.v : drawer.curAct.act)) || ""); color: Theme.muted; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; elide: Text.ElideRight; Layout.fillWidth: true } }
+                Rectangle { implicitWidth: 132; implicitHeight: 38; radius: 6; color: (drawer.curAct && drawer.curAct.danger) ? Theme.red : Theme.blue; Text { anchors.centerIn: parent; text: (drawer.curAct && drawer.curAct.on) ? "Re-apply setting" : "Apply setting"; color: Theme.bg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 1; font.weight: Font.DemiBold } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.triggerSettingAction(drawer.curAct) } }
+            }
+        }
+        Repeater {
+            model: (drawer.curAct !== null && drawer.parentItem && drawer.parentItem.acts) ? drawer.parentItem.acts : []
+            Rectangle {
+                id: sibCard; required property var modelData; required property int index; readonly property bool isSel: index === drawer.actIdx
+                Layout.fillWidth: true; implicitHeight: 58; radius: 6; color: Theme.bgAlt; border.width: isSel ? 1.5 : 1; border.color: isSel ? Theme.blue : Theme.border
+                RowLayout { anchors { fill: parent; leftMargin: 18; rightMargin: 16 } spacing: 12; Text { text: sibCard.modelData.on ? "󰄬" : "󰄰"; color: sibCard.modelData.on ? Theme.blue : Theme.muted; font.family: Theme.font; font.pixelSize: Theme.fontSize + 1 } ColumnLayout { Layout.fillWidth: true; spacing: 1; Text { text: sibCard.modelData.l; color: Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize; font.weight: sibCard.isSel ? Font.DemiBold : Font.Normal } Text { text: String(sibCard.modelData.v !== undefined ? sibCard.modelData.v : sibCard.modelData.act); color: Theme.fgDim; font.family: Theme.font; font.pixelSize: Theme.fontSize - 3; elide: Text.ElideRight; Layout.fillWidth: true } } Rectangle { implicitWidth: 88; implicitHeight: 28; radius: 5; color: sibCard.modelData.on ? Theme.blue : Theme.bg; border.width: 1; border.color: Theme.border; Text { anchors.centerIn: parent; text: sibCard.modelData.on ? "Active" : "Apply"; color: sibCard.modelData.on ? Theme.bg : Theme.fg; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: drawer.triggerSettingAction(sibCard.modelData) } } }
             }
         }
     }

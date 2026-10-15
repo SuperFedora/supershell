@@ -148,19 +148,16 @@ pub fn print_probe() {
     println!("GPU|{}|{}|{}|{}", gpu_arch, va_drv, if ff_ok { "Full FFmpeg + VA-API" } else { "ffmpeg-free" }, if dmabuf_ok { "Zero-Copy DMABUF Active" } else { "Standard" });
     println!("MODE|{}|{}", ws_mode, pk_idle);
     println!("A11Y|{}|{}|{}|{}|{}|{}", ui_scale, if anim_off { "0" } else { "1" }, if orca_on { "1" } else { "0" }, if night_on { "1" } else { "0" }, if tpad_on { "1" } else { "0" }, if mono_on { "1" } else { "0" });
-    let (mut dt, mut db, mut df, mut de, mut dm) = ("kitty".to_string(), "firefox".to_string(), "yazi".to_string(), "nvim".to_string(), "btop".to_string());
+    let mut defs = ["kitty", "firefox", "yazi", "nvim", "btop", "zathura", "imv", "mpv", "mpv", "libreoffice", "thunderbird", "file-roller", "superfedora"].map(String::from);
     if let Ok(dtxt) = fs::read_to_string(cfg.join("defaults.env")) {
-        for l in dtxt.lines() {
-            if let Some((k, v)) = l.split_once('=') {
-                let val = v.trim().trim_matches('"').trim_matches('\'').to_string();
-                match k.trim() {
-                    "DEFAULT_TERMINAL" => dt = val, "DEFAULT_BROWSER" => db = val, "DEFAULT_FILES" => df = val,
-                    "DEFAULT_EDITOR" => de = val,   "DEFAULT_MONITOR" => dm = val, _ => {}
-                }
+        for (k, v) in dtxt.lines().filter_map(|l| l.split_once('=')) {
+            let val = v.trim().trim_matches('"').trim_matches('\'').to_string();
+            if let Some(idx) = ["DEFAULT_TERMINAL", "DEFAULT_BROWSER", "DEFAULT_FILES", "DEFAULT_EDITOR", "DEFAULT_MONITOR", "DEFAULT_PDF", "DEFAULT_IMAGE", "DEFAULT_VIDEO", "DEFAULT_AUDIO", "DEFAULT_OFFICE", "DEFAULT_MAIL", "DEFAULT_ARCHIVE", "DEFAULT_SUITE"].iter().position(|&n| n == k.trim()) {
+                defs[idx] = val;
             }
         }
     }
-    println!("DEF|{}|{}|{}|{}|{}", dt, db, df, de, dm);
+    println!("DEF|{}", defs.join("|"));
 }
 
 pub fn apply_setting(args: &[String]) -> i32 {
@@ -172,6 +169,19 @@ pub fn apply_setting(args: &[String]) -> i32 {
         "default" | "default-app" => {
             let sub = args.get(2).map(|s| s.as_str()).unwrap_or("");
             let _ = Command::new("xdg-terminal-exec").args(["--set", val, sub]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+            0
+        }
+        "default-preset" | "preset" => {
+            let _ = Command::new("xdg-terminal-exec").args(["--preset", if val.is_empty() { "superfedora" } else { val }]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+            0
+        }
+        "default-ext" => {
+            let sub = args.get(2).map(|s| s.as_str()).unwrap_or("");
+            let _ = Command::new("xdg-terminal-exec").args(["--set-ext", val, sub]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+            0
+        }
+        "default-reset" => {
+            let _ = Command::new("xdg-terminal-exec").arg("--reset").stdout(Stdio::null()).stderr(Stdio::null()).status();
             0
         }
         "mode" | "profile" => {

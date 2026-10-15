@@ -19,7 +19,9 @@ Singleton {
     property string aiReply: "Ready. Type a prompt above and press Enter for an instant answer, or click [ OPEN TERMINAL ] for an interactive session."
     property bool aiBusy: false; property string _pendingAiPrompt: ""
     property bool pocketOpen: false; property bool centerToolsOpen: false; property bool recorderOpen: false; property bool superDeckOpen: false; property string superDeckSection: "ai"; property bool superDeckPowerHighlight: false
-    property bool screenRecording: false; property bool screenPaused: false; property bool settingsOpen: false; property string settingsPage: "home"; property string expandedSettingId: ""
+    property bool screenRecording: false; property bool screenPaused: false; property bool settingsOpen: false; property string settingsPage: "home"; property string expandedSettingId: ""; property string settingsSubPanel: ""; property var settingsHistory: []
+    readonly property bool canNavUp: root.settingsSubPanel !== "" || root.expandedSettingId !== "" || root.settingsPage !== "home"
+    readonly property bool canNavBack: root.settingsHistory.length > 0 || root.canNavUp
     property string currentWallpaper: ""; property var wallpaperList: []
     property bool clock24h: true; property bool clockSeconds: false; property string localTz: "Local"; property bool autoTz: true
     property var worldClocks: []; property bool dnd: false; property bool sessionLocked: false
@@ -30,7 +32,7 @@ Singleton {
     property string netIface: "wlan0"; property string netIpv4: "127.0.0.1"; property string netGateway: "None"; property string netDns: "127.0.0.53"; property string firewallState: "ACTIVE"; property string vpnState: "None"
     property string diskRoot: "0G / 0G"; property string diskHome: "0G / 0G"; property int uiScale: 14; property bool animEnabled: true; property bool orcaRunning: false; property bool nightLightRunning: false; property bool touchpadEnabled: true; property bool monoAudio: false
     property string gpuArch: "GPU"; property string gpuDriver: "VA-API"; property string gpuCodecs: "Full FFmpeg + VA-API"; property string gpuDmabuf: "Zero-Copy DMABUF Active"; property string workstationMode: "balanced"; property string pkgkitMode: "On-Demand (30s ShutdownTimeout)"
-    property string defTerminal: "kitty"; property string defBrowser: "firefox"; property string defFiles: "yazi"; property string defEditor: "nvim"; property string defMonitor: "btop"; property var _lastCpu: null; property var _lastNet: null; property var _lastGpu: null
+    property string defSuite: "superfedora"; property string defTerminal: "kitty"; property string defBrowser: "firefox"; property string defFiles: "yazi"; property string defEditor: "nvim"; property string defMonitor: "btop"; property string defPdf: "zathura"; property string defImage: "imv"; property string defVideo: "mpv"; property string defAudio: "mpv"; property string defOffice: "libreoffice"; property string defMail: "thunderbird"; property string defArchive: "file-roller"; property var installedDefaultApps: []; property var mimeExtensions: []; property var _lastCpu: null; property var _lastNet: null; property var _lastGpu: null
 
     FileView { id: procStat; path: "/proc/stat" }
     FileView { id: procMem; path: "/proc/meminfo" }
@@ -87,7 +89,7 @@ Singleton {
             "for f in ~/.local/share/applications/*.desktop; do [ -f \"$f\" ] || continue; id=$(basename \"$f\" .desktop); nm=$(grep -m1 '^Name=' \"$f\" | cut -d= -f2-); ic=$(grep -m1 '^Icon=' \"$f\" | cut -d= -f2-); ex=$(grep -m1 '^Exec=' \"$f\" | cut -d= -f2- | sed 's/ %[a-zA-Z]//g'); wm=$(grep -m1 '^StartupWMClass=' \"$f\" | cut -d= -f2-); nd=$(grep -m1 '^NoDisplay=' \"$f\" | cut -d= -f2-); [ \"$nd\" = \"true\" ] || printf 'APP|%s|%s|%s|%s|%s\\n' \"$id\" \"$nm\" \"$ic\" \"$ex\" \"$wm\"; done"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const lines = text.trim().split("\n"), type = lines[0] || "none", byName = {}, list = [], saved = [], sinks = [], sources = [], stApps = [], ff = [], procs = [], lApps = [], lMap = {}, harnesses = [], servers = [], wps = [];
+                const lines = text.trim().split("\n"), type = lines[0] || "none", byName = {}, list = [], saved = [], sinks = [], sources = [], stApps = [], ff = [], procs = [], lApps = [], lMap = {}, harnesses = [], servers = [], wps = [], mExts = [];
                 let activeSsid = "", activeSig = 0;
                 for (let i = 1; i < lines.length; i++) {
                     if (lines[i].startsWith("WFR|")) { root.wifiEnabled = (lines[i].split("|")[1] || "enabled").trim() !== "disabled"; continue; }
@@ -116,7 +118,9 @@ Singleton {
                     if (lines[i].startsWith("GPU|")) { const gp = lines[i].split("|"); root.gpuArch = gp[1] || "GPU"; root.gpuDriver = gp[2] || "VA-API"; root.gpuCodecs = gp[3] || "FFmpeg"; root.gpuDmabuf = gp[4] || "Standard"; continue; }
                     if (lines[i].startsWith("MODE|")) { const mp = lines[i].split("|"); root.workstationMode = (mp[1] || "balanced").trim(); root.pkgkitMode = mp[2] || "On-Demand"; continue; }
                     if (lines[i].startsWith("A11Y|")) { const ay = lines[i].split("|"); root.uiScale = Number(ay[1] || 14); root.animEnabled = ay[2] !== "0"; root.orcaRunning = ay[3] === "1"; root.nightLightRunning = ay[4] === "1"; root.touchpadEnabled = ay[5] !== "0"; root.monoAudio = ay[6] === "1"; continue; }
-                    if (lines[i].startsWith("DEF|")) { const df = lines[i].split("|"); root.defTerminal = df[1] || "kitty"; root.defBrowser = df[2] || "firefox"; root.defFiles = df[3] || "yazi"; root.defEditor = df[4] || "nvim"; root.defMonitor = df[5] || "btop"; continue; }
+                    if (lines[i].startsWith("DEF|")) { const df = lines[i].split("|"); root.defTerminal = df[1] || "kitty"; root.defBrowser = df[2] || "firefox"; root.defFiles = df[3] || "yazi"; root.defEditor = df[4] || "nvim"; root.defMonitor = df[5] || "btop"; root.defPdf = df[6] || "zathura"; root.defImage = df[7] || "imv"; root.defVideo = df[8] || "mpv"; root.defAudio = df[9] || "mpv"; root.defOffice = df[10] || "libreoffice"; root.defMail = df[11] || "thunderbird"; root.defArchive = df[12] || "file-roller"; root.defSuite = df[13] || "superfedora"; continue; }
+                    if (lines[i].startsWith("INS|")) { root.installedDefaultApps = (lines[i].slice(4) || "").split(",").filter(Boolean); continue; }
+                    if (lines[i].startsWith("EXT|")) { const ep = lines[i].split("|"); if (ep.length >= 6) mExts.push({ ext: ep[1], grp: ep[2], mime: ep[3], cur: ep[4], opts: ep[5].split(",").filter(Boolean) }); continue; }
                     if (lines[i].startsWith("APP|")) { const ap = lines[i].split("|"); if (ap.length >= 5 && ap[1] && ap[2]) { const iconPath = ap[3].startsWith("/") ? ap[3] : (Quickshell.env("HOME") + "/.local/share/icons/hicolor/128x128/apps/" + ap[3] + ".png"), obj = { id: ap[1], name: ap[2], icon: iconPath, execCmd: ap[4], wmClass: ap[5] || ap[1], execute: function() { Quickshell.execDetached(["sh", "-c", ap[4]]); } }; lApps.push(obj); lMap[ap[1].toLowerCase()] = obj; if (ap[5]) lMap[ap[5].toLowerCase()] = obj; } continue; }
                     const parts = lines[i].split(":"); if (parts.length < 4) continue;
                     const act = parts[0] === "yes", sig = Number(parts[1] || 0), sec = (parts[2] || "").trim(), name = parts.slice(3).join(":").replace(/\\:/g, ":").replace(/\\\\/g, "\\").trim(), open = (!sec || sec === "--");
@@ -126,7 +130,7 @@ Singleton {
                     else if (list.length < 8 || act) { const item = { ssid: name, signal: sig, active: act, open: open, security: open ? "OPEN" : "WPA", saved: saved.indexOf(name) !== -1 }; byName[name] = item; list.push(item); }
                 }
                 list.sort((a, b) => (b.active - a.active) || (b.signal - a.signal));
-                root.savedWifiList = saved; root.audioSinks = sinks; root.audioSources = sources; root.startupApps = stApps; root.fastfetchList = ff; root.topProcs = procs; root.localApps = lApps; root.localAppsMap = lMap; root.aiHarnesses = harnesses; root.llmServers = servers; root.wallpaperList = wps;
+                root.savedWifiList = saved; root.audioSinks = sinks; root.audioSources = sources; root.startupApps = stApps; root.fastfetchList = ff; root.topProcs = procs; root.localApps = lApps; root.localAppsMap = lMap; root.aiHarnesses = harnesses; root.llmServers = servers; root.wallpaperList = wps; if (mExts.length > 0) root.mimeExtensions = mExts;
                 root.wifiList = list.slice(0, 8); root.netType = (type === "wifi" || type === "ethernet") ? type : "none";
                 root.signal = type === "wifi" ? activeSig : 0; root.ssid = type === "wifi" ? activeSsid : "";
             }
@@ -142,23 +146,11 @@ Singleton {
         forgeLiveFile.reload(); const lraw = forgeLiveFile.text().trim();
         if (lraw) { try { const d = JSON.parse(lraw), ts = Number(d.ts || 0), age = (Date.now() / 1000) - ts; if (!(root.forgeBusy && ts < root._forgeStartTs - 1)) { root.forgeBusy = Boolean(d.active) && age < 180; root.forgeRecent = !root.forgeBusy && age >= 0 && age < 8 && d.state !== "idle"; root.forgeState = String(d.state || "idle"); root.forgePct = Number(d.pct || 0); root.forgeTarget = String(d.target || ""); root.forgeStep = String(d.step || "Ready"); } } catch (e) {} }
         forgeRegFile.reload(); const rraw = forgeRegFile.text().trim();
-        if (rraw) {
-            try {
-                const r = JSON.parse(rraw), wa = [], tg = (r && r.targets) ? r.targets : {}, nextMap = Object.assign({}, root.localAppsMap || {}), nextApps = (root.localApps || []).filter(a => !String(a.id || "").startsWith("sf-webapp-"));
-                for (const k in nextMap) if (k.startsWith("sf-webapp-")) delete nextMap[k];
-                for (const k in tg) if (tg[k] && tg[k].type === "webapp") { const aid = tg[k].app_id || ("sf-webapp-" + k), nm = tg[k].name || k, bin = tg[k].binary || (Quickshell.env("HOME") + "/.local/bin/" + aid), ic = tg[k].icon || (Quickshell.env("HOME") + "/.local/share/icons/hicolor/256x256/apps/" + aid + ".png"), obj = { id: aid, name: nm, icon: ic, execCmd: bin, wmClass: aid, execute: function() { Quickshell.execDetached(["sh", "-c", "'" + bin + "'"]); } }; wa.push({ slug: k, app_id: aid, name: nm, url: tg[k].url || "", mode: tg[k].profile || "shared", bin: bin, icon: ic }); nextApps.push(obj); nextMap[aid.toLowerCase()] = obj; }
-                root.forgedWebApps = wa; root.localApps = nextApps; root.localAppsMap = nextMap;
-            } catch (e) {}
-        }
+        if (rraw) { try { const r = JSON.parse(rraw), wa = [], tg = (r && r.targets) ? r.targets : {}, nextMap = Object.assign({}, root.localAppsMap || {}), nextApps = (root.localApps || []).filter(a => !String(a.id || "").startsWith("sf-webapp-")); for (const k in nextMap) if (k.startsWith("sf-webapp-")) delete nextMap[k]; for (const k in tg) if (tg[k] && tg[k].type === "webapp") { const aid = tg[k].app_id || ("sf-webapp-" + k), nm = tg[k].name || k, bin = tg[k].binary || (Quickshell.env("HOME") + "/.local/bin/" + aid), ic = tg[k].icon || (Quickshell.env("HOME") + "/.local/share/icons/hicolor/256x256/apps/" + aid + ".png"), obj = { id: aid, name: nm, icon: ic, execCmd: bin, wmClass: aid, execute: function() { Quickshell.execDetached(["sh", "-c", "'" + bin + "'"]); } }; wa.push({ slug: k, app_id: aid, name: nm, url: tg[k].url || "", mode: tg[k].profile || "shared", bin: bin, icon: ic }); nextApps.push(obj); nextMap[aid.toLowerCase()] = obj; } root.forgedWebApps = wa; root.localApps = nextApps; root.localAppsMap = nextMap; } catch (e) {} }
         root.reloadDock();
     }
     property real _forgeStartTs: 0
-    function runForge(target) {
-        const q = String(target || "").trim().replace(/['"]/g, ""); if (!q || root.forgeBusy) return;
-        const flag = root.forgeIsolated ? "--isolated " : "--shared ";
-        root._forgeStartTs = Date.now() / 1000; root.forgeBusy = true; root.forgeRecent = false; root.forgeState = "working"; root.forgePct = 5; root.forgeTarget = q; root.forgeStep = "Initializing Forge..."; root.forgeLogLine = ""; root.playSfx("confirm");
-        Quickshell.execDetached(["sh", "-c", "~/.local/bin/superforge " + flag + "'" + q + "' || ~/.local/bin/sf forge " + flag + "'" + q + "'"]);
-    }
+    function runForge(target) { const q = String(target || "").trim().replace(/['"]/g, ""); if (!q || root.forgeBusy) return; const flag = root.forgeIsolated ? "--isolated " : "--shared "; root._forgeStartTs = Date.now() / 1000; root.forgeBusy = true; root.forgeRecent = false; root.forgeState = "working"; root.forgePct = 5; root.forgeTarget = q; root.forgeStep = "Initializing Forge..."; root.forgeLogLine = ""; root.playSfx("confirm"); Quickshell.execDetached(["sh", "-c", "~/.local/bin/superforge " + flag + "'" + q + "' || ~/.local/bin/sf forge " + flag + "'" + q + "'"]); }
     function stopForge() { root._forgeStartTs = 0; root.forgeBusy = false; root.forgeRecent = false; root.forgeState = "idle"; root.forgePct = 0; root.forgeStep = "Ready"; root.playSfx("click"); Quickshell.execDetached(["sh", "-c", "pkill -f 'superforge|forge-runner\\.sh|forge\\.sh|forge-webapp\\.py' 2>/dev/null || true; printf '{\"active\":false,\"state\":\"idle\",\"target\":\"\",\"pct\":0,\"step\":\"Ready\",\"ts\":0}\\n' > ~/.config/superfedora/forge-live.json"]); }
     function dismissForgeBanner() { root.forgeRecent = false; root.forgeState = "idle"; Quickshell.execDetached(["sh", "-c", "printf '{\"active\":false,\"state\":\"idle\",\"target\":\"\",\"pct\":0,\"step\":\"Ready\",\"ts\":0}\\n' > ~/.config/superfedora/forge-live.json"]); }
     function removeForge(slug) { const s = String(slug || "").trim().replace(/['"]/g, ""); if (!s) return; root.playSfx("click"); Quickshell.execDetached(["sh", "-c", "~/.local/bin/superforge remove '" + s + "' || ~/.local/bin/sf forge remove '" + s + "'"]); }
@@ -188,7 +180,6 @@ Singleton {
     function removeLlmServer(host) { const h = String(host || "").trim().replace(/[|']/g, ""); if (!h) return; root.playSfx("click"); Quickshell.execDetached(["sh", "-c", "f=~/.config/superfedora/llm-servers.conf; [ -f \"$f\" ] && awk -F'|' -v h='" + h + "' '$2!=h' \"$f\" > \"$f.tmp\" && mv \"$f.tmp\" \"$f\"; qs ipc call status refresh"]); }
     function addCustomHarness(id, label, cmd) { const i = String(id || "").trim().replace(/['|]/g, ""), l = String(label || i).trim().replace(/['|]/g, ""), c = String(cmd || i).trim().replace(/['|]/g, ""); if (!i || !c) return; root.playSfx("confirm"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/quake-ai.sh add-agent '" + i + "' '" + l + "' '" + c + "' && ~/.config/hypr/scripts/quake-ai.sh select-agent '" + i + "'"]); }
     function removeCustomHarness(id) { const i = String(id || "").trim().replace(/['|]/g, ""); if (!i) return; root.playSfx("click"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/quake-ai.sh remove-agent '" + i + "' && qs ipc call status refresh"]); }
-
     function normalizeDeckTab(_sec) { return "ai"; }
     function normalizeSettingsPage(p) {
         const s = String(p || "").trim().toLowerCase();
@@ -197,8 +188,7 @@ Singleton {
         if (s === "system" || s === "sys" || s === "display" || s === "displays" || s === "audio" || s === "sound" || s === "1" || s === "4" || s === "5") return "system";
         if (s === "devices" || s === "bluetooth" || s === "bt" || s === "printers" || s === "printer" || s === "input" || s === "keyboard" || s === "mouse" || s === "3") return "devices";
         if (s === "network" || s === "net" || s === "wifi" || s === "2") return "network";
-        if (s === "wallpaper" || s === "wallpapers" || s === "background") { root.expandedSettingId = "ui-saver"; return "personalization"; }
-        if (s === "personalization" || s === "theme" || s === "appearance" || s === "6") return "personalization";
+        if (s === "wallpaper" || s === "wallpapers" || s === "background" || s === "personalization" || s === "theme" || s === "appearance" || s === "6") return "personalization";
         if (s === "windowing" || s === "shell" || s === "multitasking" || s === "dock" || s === "bar" || s === "7") return "windowing";
         if (s === "notifications" || s === "notifs" || s === "banners" || s === "clock") return "notifications";
         if (s === "apps" || s === "forge" || s === "startup" || s === "autostart" || s === "8") return "apps";
@@ -214,9 +204,13 @@ Singleton {
     onAppGridOpenChanged: if (root.appGridOpen) { root.superDeckOpen = false; root.settingsOpen = false; root.recorderOpen = false; }
     onRecorderOpenChanged: if (root.recorderOpen) { root.superDeckOpen = false; root.settingsOpen = false; root.appGridOpen = false; }
     onSettingsOpenChanged: if (root.settingsOpen) { root.superDeckOpen = false; root.appGridOpen = false; root.recorderOpen = false; }
-    function openSettings(page) { root.superDeckOpen = false; root.settingsPage = page ? root.normalizeSettingsPage(page) : "home"; root.settingsOpen = true; root.refresh(); root.playSfx("click"); }
-    function openSettingsItem(page, itemId) { root.expandedSettingId = String(itemId || ""); root.openSettings(page); }
-    function toggleSettings(page) { if (!page) { root.superDeckOpen = false; if (!root.settingsOpen) root.settingsPage = "home"; root.settingsOpen = !root.settingsOpen; } else { const p = root.normalizeSettingsPage(page); if (root.settingsOpen && root.settingsPage === p) root.settingsOpen = false; else { root.superDeckOpen = false; root.settingsPage = p; root.settingsOpen = true; } } if (root.settingsOpen) root.refresh(); root.playSfx("click"); }
+    function pushSettingsNav(np, ni, ns) { if (!root.settingsOpen) return; if (root.settingsPage === np && root.expandedSettingId === ni && root.settingsSubPanel === ns) return; const h = root.settingsHistory.slice(-31); h.push({ page: root.settingsPage, item: root.expandedSettingId, sub: root.settingsSubPanel }); root.settingsHistory = h; }
+    function openSettings(page) { const raw = String(page || "").trim(), parts = raw.split(":"), s = (parts[0] || "").toLowerCase(), isWp = (s === "wallpaper" || s === "wallpapers" || s === "background"), np = parts[0] ? root.normalizeSettingsPage(parts[0]) : "home", ni = parts[1] || (isWp ? "ui-saver" : ""), ns = parts[2] || (isWp ? "wp-gallery" : ""); root.pushSettingsNav(np, ni, ns); root.superDeckOpen = false; root.settingsPage = np; root.expandedSettingId = ni; root.settingsSubPanel = ns; root.settingsOpen = true; root.refresh(); root.playSfx("click"); }
+    function openSettingsItem(page, itemId, subId) { const np = page ? root.normalizeSettingsPage(page) : root.settingsPage, ni = String(itemId || ""), ns = String(subId || ""); root.pushSettingsNav(np, ni, ns); root.superDeckOpen = false; root.settingsPage = np; root.expandedSettingId = ni; root.settingsSubPanel = ns; root.settingsOpen = true; root.refresh(); root.playSfx("click"); }
+    function openSettingsSub(subId) { const ns = String(subId || ""); root.pushSettingsNav(root.settingsPage, root.expandedSettingId, ns); root.settingsSubPanel = ns; root.playSfx("click"); }
+    function navUp() { if (root.settingsSubPanel !== "") root.openSettingsSub(""); else if (root.expandedSettingId !== "") root.openSettingsItem(root.settingsPage, "", ""); else if (root.settingsPage !== "home") root.openSettings("home"); }
+    function navBack() { if (root.settingsHistory.length > 0) { const h = root.settingsHistory.slice(), prev = h.pop(); root.settingsHistory = h; root.settingsPage = prev.page || "home"; root.expandedSettingId = prev.item || ""; root.settingsSubPanel = prev.sub || ""; root.playSfx("click"); } else root.navUp(); }
+    function toggleSettings(page) { if (!page) { root.superDeckOpen = false; if (!root.settingsOpen) { root.settingsPage = "home"; root.expandedSettingId = ""; root.settingsSubPanel = ""; } root.settingsOpen = !root.settingsOpen; if (root.settingsOpen) root.refresh(); root.playSfx("click"); } else { const p = root.normalizeSettingsPage(page); if (root.settingsOpen && root.settingsPage === p && root.expandedSettingId === "") { root.settingsOpen = false; root.playSfx("click"); } else root.openSettings(page); } }
     function toggleSuperDeck(_sec) { root.settingsOpen = false; root.appGridOpen = false; root.recorderOpen = false; root.superDeckSection = "ai"; root.superDeckOpen = !root.superDeckOpen; root.refresh(); root.playSfx("click"); }
     function toggleIdle() { root.idleMode = root.idleMode === "poweroff" ? "lock" : (root.idleMode === "lock" ? "screensaver" : "poweroff"); root.idleEnabled = root.idleMode === "poweroff"; root.playSfx("toggle"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/toggle-idle.sh " + root.idleMode]); }
     function startScreenRecord(region) { root.superDeckOpen = false; root.recorderOpen = !region; root.screenRecording = !region; root.screenPaused = false; root.playSfx("confirm"); Quickshell.execDetached(["sh", "-c", "~/.config/hypr/scripts/screenshot.sh " + (region ? "record-region" : "record")]); }
