@@ -142,9 +142,9 @@ Scope {
                 anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; anchors.bottomMargin: 42; spacing: 10
                 Rectangle {
                     Layout.alignment: Qt.AlignHCenter; width: 84; height: 84; radius: Theme.radius; color: Theme.bgAlt; border.width: 2; border.color: Theme.blue
-                    Image { anchors.fill: parent; anchors.margins: 4; source: "file://" + Quickshell.env("HOME") + "/Pictures/Wallpapers/avatar.jpg"; fillMode: Image.PreserveAspectCrop }
+                    Image { anchors.fill: parent; anchors.margins: 4; source: "file://" + (Status.userAvatar || (Quickshell.env("HOME") + "/Pictures/Wallpapers/avatar.jpg")); fillMode: Image.PreserveAspectCrop; cache: false }
                 }
-                Text { Layout.alignment: Qt.AlignHCenter; text: root.userName; color: Theme.fg; font.family: Theme.font; font.pixelSize: 17; font.bold: true }
+                Text { Layout.alignment: Qt.AlignHCenter; text: Status.userFullName || root.userName; color: Theme.fg; font.family: Theme.font; font.pixelSize: 17; font.bold: true }
                 Rectangle {
                     visible: Status.notifUnread > 0 || Status.dnd
                     Layout.alignment: Qt.AlignHCenter; width: lockNotifTxt.implicitWidth + 24; height: 26; radius: Theme.radiusSm; color: Theme.bgAlt; border.width: 1; border.color: Status.dnd ? Theme.yellow : Theme.cyan

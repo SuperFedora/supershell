@@ -72,12 +72,12 @@ PanelWindow {
     }
 
     function launchItem(item) {
-        if (!item) return; Status.superDeckOpen = false; Status.settingsOpen = false; Status.playSfx("click"); const nextMap = Object.assign({}, win.launchingMap); nextMap[item.key] = Date.now(); win.launchingMap = nextMap; const k = String(item.key || "").toLowerCase();
-        if (k === "yazi" || k === "lf" || k === "superfiles") Quickshell.execDetached(["sh", "-c", "~/.local/bin/xdg-terminal-exec --files"]); else if (k === "nvim" || k === "hx" || k === "helix" || k === "micro") Quickshell.execDetached(["sh", "-c", "~/.local/bin/xdg-terminal-exec --editor"]); else if (k === "btop" || k === "htop" || k === "btm") Quickshell.execDetached(["sh", "-c", "~/.local/bin/xdg-terminal-exec --monitor"]);
+        if (!item) return; Status.superDeckOpen = false; Status.playSfx("click"); const nextMap = Object.assign({}, win.launchingMap); nextMap[item.key] = Date.now(); win.launchingMap = nextMap; const k = String(item.key || "").toLowerCase();
+        if (k === "supersettings" || k === "org.quickshell") Status.openSettings("home"); else if (k === "yazi" || k === "lf" || k === "superfiles") Quickshell.execDetached(["sh", "-c", "~/.local/bin/xdg-terminal-exec --files"]); else if (k === "nvim" || k === "hx" || k === "helix" || k === "micro") Quickshell.execDetached(["sh", "-c", "~/.local/bin/xdg-terminal-exec --editor"]); else if (k === "btop" || k === "htop" || k === "btm") Quickshell.execDetached(["sh", "-c", "~/.local/bin/xdg-terminal-exec --monitor"]);
         else if (item.entry && typeof item.entry.execute === "function" && !item.entry.runInTerminal) item.entry.execute(); else if (item.entry && item.entry.runInTerminal) Quickshell.execDetached(["sh", "-c", "~/.local/bin/xdg-terminal-exec -e " + k]); else Quickshell.execDetached(["sh", "-c", "gtk-launch '" + item.key + "' 2>/dev/null || ~/.local/bin/" + item.key + " 2>/dev/null || " + k]);
     }
     function activateItem(item) {
-        if (!item) return; Status.superDeckOpen = false; Status.settingsOpen = false; const wins = item.windows || []; if (wins.length === 0) { win.launchItem(item); return; } Status.playSfx("click");
+        if (!item) return; Status.superDeckOpen = false; const wins = item.windows || []; if (wins.length === 0) { win.launchItem(item); return; } Status.playSfx("click");
         const sorted = wins.slice().sort((a, b) => (a.minimized ? 1 : (a.workspaceId === win.wsId ? 0 : 2)) - (b.minimized ? 1 : (b.workspaceId === win.wsId ? 0 : 2)));
         let pick = sorted[0]; for (let i = 0; i < sorted.length; i++) if (sorted[i].focused) { pick = sorted[(i + 1) % sorted.length]; break; }
         if (pick.minimized) Hyprland.dispatch("movetoworkspace " + win.wsId + ",address:" + pick.address);

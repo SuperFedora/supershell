@@ -19,10 +19,7 @@ ShellRoot {
         Dock {}
     }
 
-    Variants {
-        model: Quickshell.screens
-        SettingsWindow { required property var modelData; targetScreen: modelData }
-    }
+    SettingsWindow {}
 
     AppGrid {}
     Notifications {}

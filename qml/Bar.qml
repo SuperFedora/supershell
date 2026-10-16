@@ -23,13 +23,13 @@ PanelWindow {
 
     function openDeck(sec) { calendarPopup.mode = ""; quickFlyout.mode = ""; Status.toggleSuperDeck(sec || ""); }
     function toggleCenter(targetMode) {
-        Status.superDeckOpen = false; Status.appGridOpen = false; Status.recorderOpen = false; Status.settingsOpen = false; quickFlyout.mode = "";
+        Status.superDeckOpen = false; Status.appGridOpen = false; Status.recorderOpen = false; quickFlyout.mode = "";
         if (calendarPopup.mode === targetMode) calendarPopup.mode = "";
         else { if (targetMode === "date") calendarPopup.resetToToday(); else Status.refresh(); calendarPopup.mode = targetMode; }
         Status.playSfx("click");
     }
     function toggleFlyout(targetMode) {
-        Status.superDeckOpen = false; Status.appGridOpen = false; Status.recorderOpen = false; Status.settingsOpen = false; calendarPopup.mode = "";
+        Status.superDeckOpen = false; Status.appGridOpen = false; Status.recorderOpen = false; calendarPopup.mode = "";
         quickFlyout.mode = (quickFlyout.mode === targetMode) ? "" : targetMode;
         if (quickFlyout.mode !== "") Status.refresh();
         Status.playSfx("click");
@@ -49,7 +49,7 @@ PanelWindow {
         Rectangle { anchors.fill: parent; radius: Theme.radiusSm; color: Theme.bgAlt; border.width: 1; border.color: Theme.cyan; Text { id: tipText; anchors.centerIn: parent; text: bar.hoverTip; color: Theme.cyan; font.family: Theme.font; font.pixelSize: Theme.fontSize - 2; font.bold: true } }
     }
 
-    MouseArea { anchors.fill: parent; z: -1; onClicked: { Status.superDeckOpen = false; Status.settingsOpen = false; calendarPopup.mode = ""; quickFlyout.mode = ""; } onDoubleClicked: { Theme.barOpacity = Theme.barOpacity < 0.99 ? 1.0 : 0.82; Status.playSfx("toggle"); } }
+    MouseArea { anchors.fill: parent; z: -1; onClicked: { Status.superDeckOpen = false; calendarPopup.mode = ""; quickFlyout.mode = ""; } onDoubleClicked: { Theme.barOpacity = Theme.barOpacity < 0.99 ? 1.0 : 0.82; Status.playSfx("toggle"); } }
 
     // ---------------- Left ----------------
     RowLayout {
@@ -112,7 +112,7 @@ PanelWindow {
     // ---------------- Right-Side Vertical Screen Recorder Dock ----------------
     PanelWindow {
         id: recorderDock
-        visible: (Status.recorderOpen || Status.screenRecording) && !Status.superDeckOpen && !Status.appGridOpen && !Status.settingsOpen && calendarPopup.mode === ""
+        visible: (Status.recorderOpen || Status.screenRecording) && !Status.superDeckOpen && !Status.appGridOpen && calendarPopup.mode === ""
         screen: bar.modelData; color: "transparent"; exclusionMode: ExclusionMode.Ignore
         anchors.right: true; margins.right: 8
         implicitWidth: 144; implicitHeight: recCol.implicitHeight + 24
