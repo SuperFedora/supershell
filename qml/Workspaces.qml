@@ -7,21 +7,40 @@ import Quickshell.Hyprland
 // - Occupied workspaces compact to 1..N with zero empty gaps in between.
 // - Focused workspace displays its layout glyph (Square = Tiling, Circle = Scrolling, Triangle = Floating);
 //   clicking the focused workspace cycles its layout mode (like Super + Y).
-Grid {
+// - The strip wraps its Grid in an Item so an elastic pill can be painted BEHIND the cells: two indices
+//   travel at different speeds (STYLE_RESEARCH.md §4) and the pill stretches across the gap between them.
+Item {
     id: root
     property var monitor: null
+    property var bar: null
     property bool vertical: false
     property int thickness: Theme.barHeight
     property int occupiedCount: 1
     property real wheelAccum: 0
-    columns: root.vertical ? 1 : Math.max(1, root.shown.length)
-    spacing: 0
+    readonly property int cell: 28
 
     readonly property int activeId: monitor && monitor.activeWorkspace
         ? monitor.activeWorkspace.id
         : (Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 1)
 
     readonly property string activeMode: Status.wsModeFor(root.activeId)
+    // One active colour for every tiling mode: pure Theme.blue, never a mode-tinted rainbow hue.
+    readonly property color activeCol: Theme.blue
+    // The pill always paints one standard 26 x (thickness - 8) cell (STYLE_RESEARCH.md §4).
+    readonly property int span: 26
+
+    // Dual-index elastic travel: the fast edge leads out, the slow edge catches up, so the pill
+    // stretches through the jump and lands exactly on the target cell.
+    property int hoverId: 0
+    property real idx1: Math.max(0, root.activeId - 1)
+    property real idx2: Math.max(0, root.activeId - 1)
+    Behavior on idx1 { NumberAnimation { duration: Theme.dur(110); easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
+    Behavior on idx2 { NumberAnimation { duration: Theme.dur(260); easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSpatial } }
+
+    // A horizontal bar's strip is exactly one bar tall (every cell lands on the Theme.barHeight / 2
+    // centerline); a vertical bar's strip grows along the edge and is only cross-centred.
+    implicitWidth: root.vertical ? root.thickness : grid.implicitWidth; width: implicitWidth
+    implicitHeight: root.vertical ? grid.implicitHeight : root.thickness; height: implicitHeight
 
     function modeGlyph(mode) {
         if (mode === "scrolling") return "󰄯"; // Circle = Scrolling
@@ -29,11 +48,112 @@ Grid {
         return "󱓻";                           // Square = Tiling (dwindle)
     }
 
+    // Workspace layout cycling now lives in the tiling script (no dock command API).
+    function toggleTiling(mode) {
+        Quickshell.execDetached(["sh", "-c", "~/.local/bin/superbar tiling " + (mode === "back" ? "back" : "cycle")]);
+    }
+
     readonly property var shown: {
         const total = Math.max(root.occupiedCount + 1, root.activeId, 1);
         const list = [];
         for (let i = 1; i <= total; i++) list.push(i);
         return list;
+    }
+
+    // ── Elastic active-workspace pill (behind the cells) ──────────────────────────────────────────
+    // A SOLID Theme.blue shape, no outline: the glyph on top is Theme.bg for hard contrast.
+    Rectangle {
+        id: activePill
+        readonly property real len: Math.abs(root.idx1 - root.idx2) * root.cell + root.span
+        x: root.vertical ? (root.thickness - width) / 2 : Math.min(root.idx1, root.idx2) * root.cell + (root.cell - root.span) / 2
+        y: root.vertical ? Math.min(root.idx1, root.idx2) * root.cell + (root.cell - root.span) / 2 : (root.thickness - height) / 2
+        width: root.vertical ? root.thickness - 8 : activePill.len
+        height: root.vertical ? activePill.len : root.thickness - 8
+        radius: Theme.radiusSm
+        color: root.activeCol
+        border.width: 0
+    }
+    // Hover preview: a flat theme twin of the same pill, pointing one cell ahead of the cursor.
+    Rectangle {
+        id: hoverPill
+        visible: root.hoverId > 0 && root.hoverId !== root.activeId
+        x: root.vertical ? (root.thickness - width) / 2 : (root.hoverId - 1) * root.cell + (root.cell - root.span) / 2
+        y: root.vertical ? (root.hoverId - 1) * root.cell + (root.cell - root.span) / 2 : (root.thickness - height) / 2
+        width: root.vertical ? root.thickness - 8 : root.span
+        height: root.vertical ? root.span : root.thickness - 8
+        radius: Theme.radiusSm
+        color: Theme.bgHover
+        border.width: 0
+        opacity: 0
+        Behavior on opacity { NumberAnimation { duration: Theme.dur(140); easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSpatial } }
+        states: State { name: "on"; when: hoverPill.visible; PropertyChanges { target: hoverPill; opacity: 1 } }
+    }
+
+    Grid {
+        id: grid
+        anchors.centerIn: parent
+        columns: root.vertical ? 1 : Math.max(1, root.shown.length)
+        spacing: 0
+
+        Repeater {
+            model: root.shown
+
+            Item {
+                required property int modelData
+                readonly property bool active: modelData === root.activeId
+                readonly property bool used: modelData <= root.occupiedCount
+                readonly property bool isTrailingEmpty: modelData === root.occupiedCount + 1 && !used
+
+                width: root.vertical ? root.thickness : root.cell
+                height: root.vertical ? root.cell : root.thickness
+
+                Text {
+                    anchors.centerIn: parent
+                    text: parent.active ? root.modeGlyph(root.activeMode) : (parent.isTrailingEmpty ? "+" : String(parent.modelData))
+                    // Active glyph sits as dark text on the solid Theme.blue pill; the rest is ink.
+                    color: parent.active ? Theme.bg : (parent.used ? Theme.fg : Theme.muted)
+                    font.family: Theme.font
+                    font.pixelSize: Theme.iconSize - 2
+                    font.bold: parent.isTrailingEmpty
+                }
+
+                Component.onDestruction: if (root.bar && root.bar.tipOwner === this) root.bar.setBarTip(null, "", false)
+                MouseArea {
+                    id: wsM
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onContainsMouseChanged: {
+                        root.hoverId = containsMouse ? parent.modelData : 0;
+                        if (root.bar && root.bar.setBarTip) root.bar.setBarTip(parent, parent.active ? ("Workspace " + parent.modelData + " · " + root.activeMode.charAt(0).toUpperCase() + root.activeMode.slice(1)) : (parent.isTrailingEmpty ? "New Workspace" : ("Workspace " + parent.modelData)), containsMouse);
+                    }
+                    cursorShape: Qt.PointingHandCursor
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: e => {
+                        if (root.bar && root.bar.setBarTip) root.bar.setBarTip(null, "", false);
+                        if (parent.active) {
+                            root.toggleTiling(e.button === Qt.RightButton ? "back" : "cycle");
+                        } else {
+                            Hyprland.dispatch("workspace " + parent.modelData);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Touchpad-friendly scroll accumulator across workspaces
+        WheelHandler {
+            onWheel: e => {
+                root.wheelAccum += e.angleDelta.y;
+                if (Math.abs(root.wheelAccum) < 120) return;
+                const dir = root.wheelAccum > 0 ? 1 : -1;
+                root.wheelAccum = 0;
+                if (dir > 0) {
+                    if (root.activeId > 1) Hyprland.dispatch("workspace r-1");
+                } else {
+                    if (root.activeId <= root.occupiedCount) Hyprland.dispatch("workspace r+1");
+                }
+            }
+        }
     }
 
     Process {
@@ -81,11 +201,6 @@ Grid {
         onTriggered: compactProc.running = true
     }
 
-    IpcHandler {
-        target: "workspaces"
-        function reload(): void { Status.reloadDock(); }
-    }
-
     Connections {
         target: Hyprland
         function onRawEvent(event) {
@@ -94,60 +209,6 @@ Grid {
                 e === "movewindowv2" || e === "workspace" || e === "workspacev2" ||
                 e === "destroyworkspace" || e === "destroyworkspacev2") {
                 syncTimer.restart();
-            }
-        }
-    }
-
-    Repeater {
-        model: root.shown
-
-        Item {
-            required property int modelData
-            readonly property bool active: modelData === root.activeId
-            readonly property bool used: modelData <= root.occupiedCount
-            readonly property bool isTrailingEmpty: modelData === root.occupiedCount + 1 && !used
-
-            width: root.vertical ? root.thickness : 28
-            height: root.vertical ? 28 : root.thickness
-
-            Text {
-                anchors.centerIn: parent
-                text: parent.active ? root.modeGlyph(root.activeMode) : (parent.isTrailingEmpty ? "+" : String(parent.modelData))
-                color: parent.active
-                    ? (root.activeMode === "floating" ? Theme.cyan : (root.activeMode === "scrolling" ? Theme.yellow : Theme.blue))
-                    : (parent.used ? Theme.fg : Theme.muted)
-                font.family: Theme.font
-                font.pixelSize: parent.active ? Theme.iconSize : Theme.fontSize
-                font.bold: parent.isTrailingEmpty
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                onClicked: e => {
-                    Status.superDeckOpen = false;
-                    if (parent.active) {
-                        Status.runDockCmd(e.button === Qt.RightButton ? "layout back " + parent.modelData : "layout cycle " + parent.modelData);
-                    } else {
-                        Hyprland.dispatch("workspace " + parent.modelData);
-                    }
-                }
-            }
-        }
-    }
-
-    // Touchpad-friendly scroll accumulator across workspaces
-    WheelHandler {
-        onWheel: e => {
-            root.wheelAccum += e.angleDelta.y;
-            if (Math.abs(root.wheelAccum) < 120) return;
-            const dir = root.wheelAccum > 0 ? 1 : -1;
-            root.wheelAccum = 0;
-            if (dir > 0) {
-                if (root.activeId > 1) Hyprland.dispatch("workspace r-1");
-            } else {
-                if (root.activeId <= root.occupiedCount) Hyprland.dispatch("workspace r+1");
             }
         }
     }

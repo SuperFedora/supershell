@@ -37,32 +37,77 @@ Singleton {
     property int radius: 0
     property int radiusSm: 0
     property real barOpacity: 1.0
+    property real _lockUntil: 0
+
+    // ── M3-Expressive motion tokens (STYLE_RESEARCH.md §1) ──────────────────────────────────────
+    // One gate at the token layer: Theme.animEnabled=false collapses every duration to 0 so
+    // bindings stay intact instead of needing conditionals at each of the ~90 call sites.
+    property bool animEnabled: true
+    function dur(ms) { return root.animEnabled ? ms : 0; }
+    // Qt Easing.BezierSpline control points, already in its native list<real> form: three points
+    // per segment (control1, control2, end), trailing 1,1. M3-Expressive overshoots because y > 1.
+    readonly property list<real> curveFastSpatial: [0.42, 1.67, 0.21, 0.90, 1, 1]
+    readonly property list<real> curveSpatial: [0.38, 1.21, 0.22, 1.00, 1, 1]
+    readonly property list<real> curveDecel: [0.05, 0.7, 0.1, 1, 1, 1]
+    readonly property list<real> curveStandard: [0.2, 0, 0, 1, 1, 1]
+
+    readonly property var _names: ({
+        "01-crimson": "Crimson", "02-scarlet": "Scarlet", "03-ember": "Ember", "04-amber": "Amber",
+        "05-topaz": "Topaz", "06-citrine": "Citrine", "07-peridot": "Peridot", "08-emerald": "Emerald",
+        "09-verdant": "Verdant", "10-lagoon": "Lagoon", "11-glacier": "Glacier", "12-cobalt": "Cobalt",
+        "13-indigo": "Indigo", "14-violet": "Violet", "15-orchid": "Orchid", "16-fuchsia": "Fuchsia"
+    })
 
     FileView {
         id: themeFile
         path: Quickshell.env("HOME") + "/.config/superfedora/quickshell-theme.json"
+        onLoaded: root._parseTheme()
     }
     FileView {
         id: uiScaleFile
         path: Quickshell.env("HOME") + "/.config/superfedora/ui-scale"
+        onLoaded: root._parseScale()
     }
 
-    function reloadScale(): void {
-        uiScaleFile.reload();
+    Timer {
+        id: verifyTimer
+        interval: 280; repeat: false
+        onTriggered: { root._lockUntil = 0; root.reload(); }
+    }
+
+    function applyOptimistic(cmd): void {
+        const c = String(cmd || "");
+        const tm = c.match(/(?:supertheme|superfedora\s+theme)\s+([0-9]{2}-[a-z]+|night|day|dark|light|corners\s+rounded|corners\s+square)/);
+        if (!tm) return;
+        root._lockUntil = Date.now() + 900;
+        const v = tm[1];
+        if (v === "night" || v === "dark") root.mode = "dark";
+        else if (v === "day" || v === "light") root.mode = "light";
+        else if (v === "corners rounded") { root.corners = "rounded"; root.radius = 10; root.radiusSm = 6; }
+        else if (v === "corners square") { root.corners = "square"; root.radius = 0; root.radiusSm = 0; }
+        else { root.theme = v; if (root._names[v]) root.themeName = root._names[v]; }
+        verifyTimer.restart();
+    }
+
+    function _parseScale(): void {
         const s = Number(uiScaleFile.text().trim() || "14");
         if (s >= 12 && s <= 22) root.fontSize = s;
     }
 
-    function reload(): void {
-        root.reloadScale();
-        themeFile.reload();
+    function reloadScale(): void {
+        uiScaleFile.reload();
+        root._parseScale();
+    }
+
+    function _parseTheme(): void {
         const raw = themeFile.text().trim();
         if (!raw) return;
+        const locked = Date.now() < root._lockUntil;
         try {
             const d = JSON.parse(raw);
-            if (d.theme) root.theme = d.theme;
-            if (d.name) root.themeName = d.name;
-            if (d.mode) root.mode = d.mode;
+            if (!locked && d.theme) root.theme = d.theme;
+            if (!locked && d.name) root.themeName = d.name;
+            if (!locked && d.mode) root.mode = d.mode;
             if (d.nightlight !== undefined) root.nightlight = Boolean(d.nightlight);
             if (d.bg) root.bg = d.bg;
             if (d.bgAlt) root.bgAlt = d.bgAlt;
@@ -73,16 +118,22 @@ Singleton {
             if (d.muted) root.muted = d.muted;
             if (d.blue) root.blue = d.blue;
             if (d.cyan) root.cyan = d.cyan;
-            if (d.corners) root.corners = d.corners;
-            if (d.radius !== undefined) root.radius = Number(d.radius);
-            if (d.radiusSm !== undefined) root.radiusSm = Number(d.radiusSm);
+            if (!locked && d.corners) root.corners = d.corners;
+            if (!locked && d.radius !== undefined) root.radius = Number(d.radius);
+            if (!locked && d.radiusSm !== undefined) root.radiusSm = Number(d.radiusSm);
         } catch (e) {}
+    }
+
+    function reload(): void {
+        root.reloadScale();
+        themeFile.reload();
+        root._parseTheme();
     }
 
     Component.onCompleted: root.reload()
 
     IpcHandler {
         target: "theme"
-        function reload(): void { root.reload(); }
+        function reload(): void { root._lockUntil = 0; root.reload(); }
     }
 }

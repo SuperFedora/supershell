@@ -1,22 +1,13 @@
 [package]
 name = "supershell"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2024"
-rust-version = "1.99"
-description = "SuperFedora 16-Bit Native Rust Desktop Shell Suite (superdock, superbar, supersettings, superlock)"
+description = "SuperFedora Native Shell Engine — Quickshell QML & Rust TUI Control Suite"
 license = "Apache-2.0"
 
 [lib]
 name = "supershell"
 path = "src/lib.rs"
-
-[[bin]]
-name = "superdock"
-path = "src/bin/superdock.rs"
-
-[[bin]]
-name = "superbar"
-path = "src/bin/superbar.rs"
 
 [[bin]]
 name = "supersettings"
@@ -27,14 +18,7 @@ name = "superlock"
 path = "src/bin/superlock.rs"
 
 [dependencies]
-crossterm = "0.29.0"
-ratatui = "0.30.2"
-serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.154"
-
-[profile.release]
-opt-level = 3
-lto = "thin"
-codegen-units = 1
-strip = true
-panic = "abort"
+crossterm = "0.28"
+ratatui = "0.29"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

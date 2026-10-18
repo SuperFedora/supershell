@@ -1,172 +1,110 @@
 // Copyright 2026 SuperFedora Contributors
 // SPDX-License-Identifier: Apache-2.0
+// ==============================================================================
+// superlock.rs — 16-Bit Lock Screen, Idle Policy & Desktop Session Manager
+// ==============================================================================
+// Idle policy is applied natively: there is no `toggle-idle.sh` shim. The mode
+// lives in `~/.config/superfedora/idle-mode`, the derived stay-awake sentinel in
+// `~/.config/superfedora/stay-awake`, and both the renderer and the DE session
+// state live in the library so this file stays inside the 16-256 line Page Rule.
 
-use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
-    execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-};
-use ratatui::{
-    Terminal,
-    backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
-};
 use std::env;
 use std::fs;
-use std::io::Write;
-use std::path::Path;
-use std::process::{self, Command, Stdio};
-use std::time::Duration;
-use supershell::{ShellEnv, play_sfx, qs_call, run_quiet};
+use std::process;
+use std::process::Command;
+use supershell::lock_tui::LockUi;
+use supershell::session_state::{current_session_id, discover_sessions, pick_session, set_session_id};
+use supershell::{
+    ShellEnv, notify_send, pgrep_exact, qs_call, run_quiet, settings_engine::apply_setting,
+};
 
-fn discover_sessions() -> Vec<(String, String)> {
-    let mut out = Vec::new();
-    for dir in ["/usr/share/wayland-sessions", "/usr/share/xsessions"] {
-        if let Ok(entries) = fs::read_dir(dir) {
-            let mut paths: Vec<_> = entries.flatten().map(|e| e.path()).filter(|p| p.extension().and_then(|x| x.to_str()) == Some("desktop")).collect();
-            paths.sort();
-            for p in paths {
-                let id = p.file_stem().and_then(|s| s.to_str()).unwrap_or("hyprland").to_string();
-                let name = fs::read_to_string(&p)
-                    .ok()
-                    .and_then(|t| t.lines().find_map(|l| l.strip_prefix("Name=").map(|s| s.trim().to_string())))
-                    .unwrap_or_else(|| id.clone());
-                out.push((id, name));
-            }
+/// Idle policy values persisted in `~/.config/superfedora/idle-mode`.
+const IDLE_MODES: [&str; 3] = ["poweroff", "lock", "screensaver"];
+
+/// Resolve an idle-policy verb against the current mode. Pure: no I/O.
+fn resolve_idle_mode(current: &str, sub: &str) -> String {
+    let verb = sub.trim().to_ascii_lowercase();
+    match verb.as_str() {
+        "poweroff" | "normal" | "idle" | "off" => "poweroff".into(),
+        "lock" | "lock-only" => "lock".into(),
+        "screensaver" | "stay-awake" | "awake" | "on" => "screensaver".into(),
+        "toggle" | "cycle" | "" => {
+            let idx = IDLE_MODES.iter().position(|m| *m == current).unwrap_or(0);
+            IDLE_MODES[(idx + 1) % IDLE_MODES.len()].into()
         }
-    }
-    if out.is_empty() {
-        out.push(("hyprland".into(), "Hyprland".into()));
-        out.push(("gnome".into(), "GNOME".into()));
-    }
-    out
-}
-
-fn current_session_id(env: &ShellEnv) -> String {
-    if let Ok(txt) = fs::read_to_string(env.state_dir.join("session.env")) {
-        for line in txt.lines() {
-            if let Some((k, v)) = line.split_once('=') && k.trim() == "SELECTED_SESSION" {
-                let val = v.trim().trim_matches('"').trim_matches('\'');
-                if !val.is_empty() {
-                    return val.to_string();
-                }
-            }
-        }
-    }
-    "hyprland".into()
-}
-
-fn set_session_id(env: &ShellEnv, target: &str) {
-    let _ = fs::write(env.state_dir.join("session.env"), format!("SELECTED_SESSION=\"{target}\"\n"));
-    let uid = Command::new("id").arg("-u").output().ok().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_else(|| "1000".into());
-    let obj = format!("/org/freedesktop/Accounts/User{uid}");
-    run_quiet("gdbus", &["call", "--system", "--dest", "org.freedesktop.Accounts", "--object-path", &obj, "--method", "org.freedesktop.Accounts.User.SetSession", target]);
-    run_quiet("gdbus", &["call", "--system", "--dest", "org.freedesktop.Accounts", "--object-path", &obj, "--method", "org.freedesktop.Accounts.User.SetXSession", target]);
-}
-
-fn activate_lock() {
-    if !qs_call("lock", &["activate"]) {
-        if Command::new("hyprlock").status().is_err() {
-            run_quiet("loginctl", &["lock-session"]);
-        }
+        other => other.into(),
     }
 }
 
-fn idle_mode(env: &ShellEnv) -> String {
-    fs::read_to_string(env.state_dir.join("idle-mode"))
+/// Apply an idle policy natively and return the resulting mode.
+///
+/// `poweroff` runs the full idle chain (screensaver, lock, screen off), `lock`
+/// locks without powering the display down, and `screensaver` never locks or
+/// powers off. Keeps the stay-awake sentinel in sync, guarantees `hypridle` is
+/// running, notifies the user and refreshes Quickshell.
+fn set_idle_mode(env: &ShellEnv, sub: &str) -> String {
+    let mode_file = env.cfg_dir.join("idle-mode");
+    let stay_awake_file = env.cfg_dir.join("stay-awake");
+
+    let current = fs::read_to_string(&mode_file)
         .map(|s| s.trim().to_string())
         .ok()
-        .filter(|s| !s.is_empty())
+        .filter(|s| IDLE_MODES.contains(&s.as_str()))
+        .unwrap_or_else(|| {
+            if stay_awake_file.exists() {
+                "screensaver".into()
+            } else {
+                "poweroff".into()
+            }
+        });
+
+    let next = resolve_idle_mode(&current, sub);
+
+    let _ = fs::write(&mode_file, format!("{next}\n"));
+    if next == "screensaver" {
+        let _ = fs::write(&stay_awake_file, "1\n");
+    } else {
+        let _ = fs::remove_file(&stay_awake_file);
+    }
+
+    if !pgrep_exact("hypridle") {
+        run_quiet("hyprctl", &["dispatch", "exec", "hypridle"]);
+    }
+
+    match next.as_str() {
+        "poweroff" => notify_send(
+            "Idle Mode: Screen Power Off",
+            "Screensaver (2m) -> Lock (5m) -> Screen Off (10m)",
+        ),
+        "lock" => notify_send(
+            "Idle Mode: Lock Screen Only",
+            "Screensaver (2m) -> Lock (5m) · Screen never powers off",
+        ),
+        "screensaver" => notify_send(
+            "Idle Mode: Only Screensaver",
+            "Screensaver (2m) · Never locks or powers off",
+        ),
+        _ => {}
+    }
+
+    let _ = qs_call("status", &["refresh"]);
+    next.to_string()
+}
+
+/// Current idle policy, defaulting to the full power-off chain.
+fn idle_mode(env: &ShellEnv) -> String {
+    fs::read_to_string(env.cfg_dir.join("idle-mode"))
+        .map(|s| s.trim().to_string())
+        .ok()
+        .filter(|s| IDLE_MODES.contains(&s.as_str()))
         .unwrap_or_else(|| "poweroff".into())
 }
 
-fn run_tui(env: &ShellEnv) -> i32 {
-    if enable_raw_mode().is_err() { return 1; }
-    let mut stdout = std::io::stdout();
-    let _ = execute!(stdout, EnterAlternateScreen);
-    let Ok(mut term) = Terminal::new(CrosstermBackend::new(stdout)) else { let _ = disable_raw_mode(); return 1; };
-    let sessions = discover_sessions();
-    let mut cur_id = current_session_id(env);
-    let mut sel = sessions.iter().position(|(id, _)| *id == cur_id).unwrap_or(0);
-    let mut msg = String::from("SuperLock 16-Bit Lock Screen, Idle & DE Session Manager Ready");
-
-    loop {
-        let idle = idle_mode(env);
-        let _ = term.draw(|f| {
-            let pri = env.pri();
-            let sec = env.sec();
-            let rows = Layout::default().direction(Direction::Vertical).constraints([Constraint::Length(3), Constraint::Min(10), Constraint::Length(3)]).split(f.area());
-            let hdr = Paragraph::new(Line::from(vec![
-                Span::styled(concat!(" [::] SUPERLOCK v", env!("CARGO_PKG_VERSION"), " "), Style::default().fg(Color::Black).bg(pri).add_modifier(Modifier::BOLD)),
-                Span::raw(format!("  Selected DE: {cur_id}  |  Idle Mode: {idle} ")),
-            ])).block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(pri)));
-            f.render_widget(hdr, rows[0]);
-
-            let items: Vec<ListItem> = sessions.iter().enumerate().map(|(i, (id, name))| {
-                let is_sel = i == sel;
-                let is_act = *id == cur_id;
-                ListItem::new(Line::from(vec![
-                    Span::styled(if is_sel { " > " } else { "   " }, Style::default().fg(pri).add_modifier(Modifier::BOLD)),
-                    Span::styled(if is_act { "[SELECTED] " } else { "           " }, Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-                    Span::styled(format!("{id:<18} ({name})"), Style::default().fg(if is_sel { Color::Black } else { Color::White }).bg(if is_sel { pri } else { Color::Reset }).add_modifier(Modifier::BOLD)),
-                ]))
-            }).collect();
-            let list = List::new(items).block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(sec)).title(" INSTALLED WAYLAND / X11 SESSIONS (Enter=Select DE, l=Lock Now, i=Cycle Idle Mode) "));
-            f.render_widget(list, rows[1]);
-
-            let ftr = Paragraph::new(Line::from(vec![
-                Span::styled(" KEYS ", Style::default().fg(Color::Black).bg(sec).add_modifier(Modifier::BOLD)),
-                Span::raw(" [Enter] Select DE  [n] Next DE  [l] Lock Workstation  [i] Cycle Idle Mode  [q] Quit | "),
-                Span::styled(&msg, Style::default().fg(pri).add_modifier(Modifier::BOLD)),
-            ])).block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(pri)));
-            f.render_widget(ftr, rows[2]);
-        });
-
-        if event::poll(Duration::from_millis(250)).unwrap_or(false)
-            && let Ok(Event::Key(k)) = event::read()
-            && k.kind == KeyEventKind::Press
-        {
-            match k.code {
-                KeyCode::Char('q') | KeyCode::Esc => break,
-                KeyCode::Down | KeyCode::Char('j') => sel = (sel + 1) % sessions.len(),
-                KeyCode::Up | KeyCode::Char('k') => sel = (sel + sessions.len() - 1) % sessions.len(),
-                KeyCode::Enter => {
-                    cur_id = sessions[sel].0.clone();
-                    set_session_id(env, &cur_id);
-                    play_sfx("confirm");
-                    msg = format!("Selected DE session: {cur_id}");
-                }
-                KeyCode::Char('n') => {
-                    sel = (sel + 1) % sessions.len();
-                    cur_id = sessions[sel].0.clone();
-                    set_session_id(env, &cur_id);
-                    play_sfx("click");
-                    msg = format!("Cycled DE session: {cur_id}");
-                }
-                KeyCode::Char('l') => {
-                    let _ = disable_raw_mode();
-                    let _ = execute!(term.backend_mut(), LeaveAlternateScreen);
-                    activate_lock();
-                    return 0;
-                }
-                KeyCode::Char('i') => {
-                    let script = env.home.join(".config/hypr/scripts/toggle-idle.sh");
-                    if Path::new(&script).is_file() {
-                        let _ = Command::new(script).status();
-                    }
-                    msg = format!("Idle mode: {}", idle_mode(env));
-                }
-                _ => {}
-            }
-        }
+/// Lock the workstation through Quickshell, hyprlock, then logind.
+fn activate_lock() {
+    if !qs_call("lock", &["activate"]) && Command::new("hyprlock").status().is_err() {
+        run_quiet("loginctl", &["lock-session"]);
     }
-    let _ = disable_raw_mode();
-    let _ = execute!(term.backend_mut(), LeaveAlternateScreen);
-    let _ = term.show_cursor();
-    0
 }
 
 fn main() {
@@ -176,13 +114,37 @@ fn main() {
     let sessions = discover_sessions();
     let cur_id = current_session_id(&env);
     let cur_idx = sessions.iter().position(|(id, _)| *id == cur_id).unwrap_or(0);
-    let cur_name = &sessions[cur_idx].1;
 
     match cmd {
-        "tui" => process::exit(run_tui(&env)),
-        "version" | "--version" | "-V" => println!("superlock {} (SuperFedora/supershell)", env!("CARGO_PKG_VERSION")),
+        "tui" => process::exit(
+            LockUi {
+                env: &env,
+                sessions,
+                current: cur_id,
+                set_session: &|id| set_session_id(&env, id),
+                idle_mode: &|| idle_mode(&env),
+                cycle_idle: &|sub| set_idle_mode(&env, sub),
+                lock_now: &|| activate_lock(),
+            }
+            .run(),
+        ),
+        "version" | "--version" | "-V" => {
+            println!("superlock {} (SuperFedora/supershell)", env!("CARGO_PKG_VERSION"))
+        }
         "lock" | "activate" => activate_lock(),
-        "status" => println!("<b>\u{f0493} DE: {cur_name}</b>"),
+        "status" => println!("<b>\u{f0493} DE: {}</b>", sessions[cur_idx].1),
+        "idle" => {
+            let sub = args.get(1).map(|s| s.as_str()).unwrap_or("status");
+            if sub == "status" {
+                println!("{}", idle_mode(&env));
+            } else {
+                println!("[OK] idle-mode: {}", set_idle_mode(&env, sub));
+            }
+        }
+        "dpms" => {
+            let sub = args.get(1).map(|s| s.as_str()).unwrap_or("off");
+            process::exit(apply_setting(&["dpms".into(), sub.into()]));
+        }
         "list" => {
             for (i, (id, name)) in sessions.iter().enumerate() {
                 let mark = if i == cur_idx { "[*]" } else { "   " };
@@ -198,40 +160,71 @@ fn main() {
             let target = args.get(1).map(|s| s.as_str()).unwrap_or("hyprland");
             set_session_id(&env, target);
         }
-        "switch" => {
-            run_quiet("gdbus", &["call", "--system", "--dest", "org.gnome.DisplayManager", "--object-path", "/org/gnome/DisplayManager/LocalDisplayFactory", "--method", "org.gnome.DisplayManager.LocalDisplayFactory.CreateTransientDisplay"]);
-            run_quiet("systemctl", &["--user", "stop", "hyprland-session.target"]);
-            run_quiet("systemctl", &["--user", "reset-failed"]);
-            run_quiet("hyprctl", &["dispatch", "exit"]);
-        }
-        "pick" => {
-            let mut input = String::new();
-            for (id, name) in &sessions { input.push_str(&format!("{id}: {name}\n")); }
-            if let Ok(mut child) = Command::new("fuzzel").args(["--dmenu", "--prompt", "Select DE > ", "--lines", "6", "--width", "38"]).stdin(Stdio::piped()).stdout(Stdio::piped()).spawn() {
-                if let Some(mut stdin) = child.stdin.take() { let _ = stdin.write_all(input.as_bytes()); }
-                if let Ok(out) = child.wait_with_output() && out.status.success() {
-                    let choice = String::from_utf8_lossy(&out.stdout);
-                    if let Some((sel_id, _)) = choice.trim().split_once(':') && !sel_id.is_empty() {
-                        set_session_id(&env, sel_id);
-                    }
-                }
-            }
-        }
-        "idle" => {
-            let sub = args.get(1).map(|s| s.as_str()).unwrap_or("status");
-            if sub == "status" {
-                println!("{}", idle_mode(&env));
-            } else {
-                let script = env.home.join(".config/hypr/scripts/toggle-idle.sh");
-                let _ = Command::new(script).arg(sub).status();
-            }
-        }
-        "-h" | "--help" | "help" => {
-            println!("Usage: superlock [lock|status|list|next|set <id>|switch|pick|idle|tui]");
-        }
-        _ => {
-            eprintln!("unknown superlock command: {cmd}");
+        "switch" => switch_session(),
+        "pick" => pick_session(&env, &sessions),
+        "-h" | "--help" | "help" => println!(
+            "Usage: superlock [lock|status|list|next|set <id>|switch|pick|idle [poweroff|lock|screensaver]|tui|dpms [off|on|sync]]"
+        ),
+        other => {
+            eprintln!("[FAIL] unknown superlock command: {other}");
             process::exit(2);
         }
+    }
+}
+
+/// Hand the greeter a transient display and tear the current session down.
+fn switch_session() {
+    run_quiet(
+        "gdbus",
+        &[
+            "call",
+            "--system",
+            "--dest",
+            "org.gnome.DisplayManager",
+            "--object-path",
+            "/org/gnome/DisplayManager/LocalDisplayFactory",
+            "--method",
+            "org.gnome.DisplayManager.LocalDisplayFactory.CreateTransientDisplay",
+        ],
+    );
+    run_quiet("systemctl", &["--user", "stop", "hyprland-session.target"]);
+    run_quiet("systemctl", &["--user", "reset-failed"]);
+    run_quiet("hyprctl", &["dispatch", "exit"]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn idle_modes_are_the_documented_three() {
+        assert_eq!(IDLE_MODES, ["poweroff", "lock", "screensaver"]);
+    }
+
+    #[test]
+    fn explicit_idle_verbs_resolve_and_are_idempotent() {
+        for verb in ["poweroff", "lock", "screensaver"] {
+            assert_eq!(resolve_idle_mode("lock", verb), verb);
+            assert_eq!(resolve_idle_mode(verb, verb), verb);
+        }
+        assert_eq!(resolve_idle_mode("lock", "LOCK-ONLY"), "lock");
+        assert_eq!(resolve_idle_mode("lock", "screensaver"), "screensaver");
+    }
+
+    #[test]
+    fn toggle_cycles_through_all_three_modes() {
+        let mut mode = String::from("poweroff");
+        for expected in ["lock", "screensaver", "poweroff"] {
+            mode = resolve_idle_mode(&mode, "toggle");
+            assert_eq!(mode, expected);
+        }
+        // A bare invocation and "cycle" behave identically to "toggle".
+        assert_eq!(resolve_idle_mode("poweroff", ""), "lock");
+        assert_eq!(resolve_idle_mode("poweroff", "cycle"), "lock");
+    }
+
+    #[test]
+    fn toggle_recovers_from_an_unknown_persisted_mode() {
+        assert_eq!(resolve_idle_mode("nonsense", "toggle"), "lock");
     }
 }

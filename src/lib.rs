@@ -1,156 +1,173 @@
 // Copyright 2026 SuperFedora Contributors
 // SPDX-License-Identifier: Apache-2.0
+// ==============================================================================
+// lib.rs — SuperShell Shared Runtime: ShellEnv, Process & Config Primitives
+// ==============================================================================
 
+pub mod hardware;
+pub mod lock_tui;
+pub mod session_state;
+pub mod settings_devices;
 pub mod settings_engine;
-pub mod telemetry_hud;
+pub mod settings_probe;
 
 use ratatui::style::Color;
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-pub const PALETTES: &[(&str, (u8, u8, u8), (u8, u8, u8))] = &[
-    ("01-crimson", (247, 118, 142), (255, 158, 100)),
-    ("02-scarlet", (255, 95, 110), (247, 118, 142)),
-    ("03-ember", (255, 122, 89), (224, 175, 104)),
-    ("04-amber", (255, 158, 100), (224, 175, 104)),
-    ("05-topaz", (224, 175, 104), (158, 206, 106)),
-    ("06-citrine", (240, 208, 104), (115, 218, 202)),
-    ("07-peridot", (180, 224, 108), (115, 218, 202)),
-    ("08-emerald", (158, 206, 106), (115, 218, 202)),
-    ("09-verdant", (115, 218, 202), (125, 207, 255)),
-    ("10-lagoon", (42, 195, 222), (122, 162, 247)),
-    ("11-glacier", (125, 207, 255), (187, 154, 247)),
-    ("12-cobalt", (122, 162, 247), (187, 154, 247)),
-    ("13-indigo", (130, 140, 255), (125, 207, 255)),
-    ("14-violet", (187, 154, 247), (122, 162, 247)),
-    ("15-orchid", (211, 134, 247), (247, 118, 142)),
-    ("16-fuchsia", (255, 117, 195), (125, 207, 255)),
-];
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct DockConfig {
-    pub position: String,
-    pub autohide: bool,
-    #[serde(rename = "showAlways")]
-    pub show_always: bool,
-    pub pinned: Vec<String>,
-}
-
-impl Default for DockConfig {
-    fn default() -> Self {
-        Self {
-            position: "bottom".into(),
-            autohide: false,
-            show_always: true,
-            pinned: ["kitty", "org.mozilla.firefox", "com.google.Chrome", "yazi", "nvim", "btop"]
-                .iter()
-                .map(|s| s.to_string())
-                .collect(),
-        }
-    }
-}
-
-#[derive(Clone, Default, Serialize, Deserialize)]
-pub struct WorkspaceModes {
-    #[serde(default = "default_mode")]
-    pub default: String,
-    #[serde(default)]
-    pub workspaces: BTreeMap<String, String>,
-}
-fn default_mode() -> String { "dwindle".into() }
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ShellEnv {
     pub home: PathBuf,
+    pub cfg_dir: PathBuf,
     pub state_dir: PathBuf,
     pub theme_color: String,
-    pub pri_rgb: (u8, u8, u8),
-    pub sec_rgb: (u8, u8, u8),
+    pub theme_mode: String,
+    pub corners: String,
 }
 
 impl ShellEnv {
     pub fn load() -> Self {
-        let home = PathBuf::from(env::var("HOME").unwrap_or_else(|_| "/home/jeryd".into()));
-        let state_dir = env::var("XDG_CONFIG_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| home.join(".config"))
-            .join("superfedora");
-        let _ = fs::create_dir_all(&state_dir);
-        let mut theme_color = String::from("12-cobalt");
-        if let Ok(txt) = fs::read_to_string(state_dir.join("theme.env")) {
-            for line in txt.lines() {
-                if let Some((k, v)) = line.split_once('=')
-                    && k.trim() == "THEME_COLOR"
-                {
-                    theme_color = v.trim().trim_matches('"').trim_matches('\'').to_string();
-                }
-            }
+        let cfg_dir = cfg_dir();
+        let read_trimmed = |name: &str, def: &str| -> String {
+            fs::read_to_string(cfg_dir.join(name))
+                .map(|s| s.trim().to_string())
+                .ok()
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| def.to_string())
+        };
+        Self {
+            home: home_dir(),
+            cfg_dir: cfg_dir.clone(),
+            state_dir: runtime_dir(),
+            theme_color: read_trimmed("theme-color", "blue"),
+            theme_mode: read_trimmed("theme-mode", "dark"),
+            corners: read_trimmed("theme-corners", "rounded"),
         }
-        let (pri_rgb, sec_rgb) = PALETTES
-            .iter()
-            .find(|(id, _, _)| *id == theme_color)
-            .map(|(_, p, s)| (*p, *s))
-            .unwrap_or(((122, 162, 247), (187, 154, 247)));
-        Self { home, state_dir, theme_color, pri_rgb, sec_rgb }
     }
 
     pub fn pri(&self) -> Color {
-        Color::Rgb(self.pri_rgb.0, self.pri_rgb.1, self.pri_rgb.2)
+        match self.theme_color.as_str() {
+            "red" => Color::Rgb(243, 139, 168),
+            "orange" | "peach" => Color::Rgb(250, 179, 135),
+            "yellow" | "gold" => Color::Rgb(249, 226, 175),
+            "green" | "emerald" => Color::Rgb(166, 227, 161),
+            "teal" | "cyan" => Color::Rgb(148, 226, 213),
+            "purple" | "mauve" => Color::Rgb(203, 166, 247),
+            "pink" => Color::Rgb(245, 194, 231),
+            "mono" | "slate" => Color::Rgb(186, 194, 222),
+            _ => Color::Rgb(137, 180, 250),
+        }
     }
 
     pub fn sec(&self) -> Color {
-        Color::Rgb(self.sec_rgb.0, self.sec_rgb.1, self.sec_rgb.2)
+        Color::Rgb(148, 226, 213)
     }
 }
 
-pub fn qs_running() -> bool {
-    Command::new("pgrep")
-        .args(["-x", "quickshell"])
+// --- Process primitives -----------------------------------------------------
+// Every helper is deliberately non-fatal: a workstation shell must degrade
+// gracefully when an optional tool is not installed.
+
+/// Run a command and capture its trimmed stdout. Empty string on any failure.
+pub fn run_out(program: &str, args: &[&str]) -> String {
+    Command::new(program)
+        .args(args)
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default()
+}
+
+/// Run a command to completion, discarding all output.
+pub fn run_quiet(program: &str, args: &[&str]) {
+    let _ = Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
-        || Command::new("pgrep")
-            .args(["-x", "qs"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
+        .status();
 }
 
-pub fn qs_call(target: &str, args: &[&str]) -> bool {
-    if !qs_running() {
-        return false;
-    }
-    for bin in ["qs", "quickshell"] {
-        let mut c = Command::new(bin);
-        c.args(["ipc", "--any-display", "call", target]).args(args).stdout(Stdio::null()).stderr(Stdio::null());
-        if let Ok(st) = c.status() && st.success() {
-            return true;
-        }
-    }
-    false
-}
-
-pub fn notify_dock() {
-    let _ = qs_call("dock", &["reload"]);
-    let _ = qs_call("workspaces", &["reload"]);
-}
-
-pub fn play_sfx(chime: &str) {
-    let _ = Command::new("supertheme")
-        .args(["sfx", "play", chime])
+/// Spawn a detached background process, discarding all output.
+pub fn spawn_quiet(program: &str, args: &[&str]) {
+    let _ = Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn();
 }
 
-pub fn run_quiet(cmd: &str, args: &[&str]) {
-    let _ = Command::new(cmd).args(args).stdout(Stdio::null()).stderr(Stdio::null()).status();
+/// True when an exact process name is currently running.
+pub fn pgrep_exact(proc_name: &str) -> bool {
+    Command::new("pgrep")
+        .args(["-x", proc_name])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Send a desktop notification through the standard notification daemon.
+pub fn notify_send(summary: &str, body: &str) {
+    let _ = Command::new("notify-send")
+        .args(["-a", "SuperFedora", "-t", "1500", summary, body])
+        .status();
+}
+
+// --- Path primitives --------------------------------------------------------
+
+/// User home directory, derived from `HOME` then `USER` then `/tmp`.
+pub fn home_dir() -> PathBuf {
+    env::var("HOME")
+        .map(PathBuf::from)
+        .or_else(|_| env::var("USER").map(|u| PathBuf::from(format!("/home/{u}"))))
+        .unwrap_or_else(|_| PathBuf::from("/tmp"))
+}
+
+/// Managed user configuration root, created on demand.
+pub fn cfg_dir() -> PathBuf {
+    let dir = home_dir().join(".config/superfedora");
+    let _ = fs::create_dir_all(&dir);
+    dir
+}
+
+/// Volatile per-session state root, created on demand.
+pub fn runtime_dir() -> PathBuf {
+    let dir = PathBuf::from(env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".into()));
+    let _ = fs::create_dir_all(&dir);
+    dir
+}
+
+// --- Compositor primitives --------------------------------------------------
+
+/// Invoke the Quickshell IPC. `true` when the daemon accepted the call.
+pub fn qs_call(target: &str, args: &[&str]) -> bool {
+    let mut cmd = Command::new("qs");
+    cmd.args(["ipc", "call", target]);
+    for a in args {
+        cmd.arg(a);
+    }
+    cmd.status().map(|s| s.success()).unwrap_or(false)
+}
+
+/// Invoke a Hyprland dispatcher. `true` when the compositor accepted it.
+pub fn hypr_dispatch(args: &[&str]) -> bool {
+    let mut cmd = Command::new("hyprctl");
+    cmd.arg("dispatch");
+    for a in args {
+        cmd.arg(a);
+    }
+    cmd.status().map(|s| s.success()).unwrap_or(false)
+}
+
+/// Play a packaged 16-bit UI sound effect.
+pub fn play_sfx(name: &str) {
+    let _ = Command::new("paplay")
+        .args(["/usr/share/sounds/superfedora/click.wav"])
+        .status();
+    let _ = Command::new("paplay")
+        .args([format!("/usr/share/sounds/superfedora/{name}.wav")])
+        .status();
 }
