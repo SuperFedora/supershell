@@ -68,7 +68,7 @@ fn set_idle_mode(env: &ShellEnv, sub: &str) -> String {
     }
 
     if !pgrep_exact("hypridle") {
-        run_quiet("hyprctl", &["dispatch", "exec", "hypridle"]);
+        run_quiet("systemctl", &["--user", "start", "hypridle.service"]);
     }
 
     match next.as_str() {
@@ -187,7 +187,10 @@ fn switch_session() {
             "org.gnome.DisplayManager.LocalDisplayFactory.CreateTransientDisplay",
         ],
     );
-    run_quiet("systemctl", &["--user", "stop", "hyprland-session.target"]);
+    run_quiet(
+        "systemctl",
+        &["--user", "stop", "superfedora-session.target", "hyprland-session.target"],
+    );
     run_quiet("systemctl", &["--user", "reset-failed"]);
     run_quiet("hyprctl", &["dispatch", "exit"]);
 }
